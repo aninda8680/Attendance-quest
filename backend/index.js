@@ -1,0 +1,257 @@
+const express = require("express");
+const cors = require("cors");
+const axios = require("axios");
+const cheerio = require("cheerio");
+const { wrapper } = require("axios-cookiejar-support");
+const { CookieJar } = require("tough-cookie");
+require("dotenv").config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Hardcoded array of 5 friends
+const usersDatabase = [
+  {
+    id: "1", // Use a simple ID for frontend referencing
+    name:"Aninda",
+    username: "AU/2023/0009649", // Registration No. for portal
+    password: "Aninda@8680",     // Password for portal
+    studentName: "", // Cached student name initially empty
+    regInfo: ""      // Cached registration string initially empty
+  },
+  {
+    id: "2",
+    name:"Sankalpa",
+    username: "AU/2023/0009361",
+    password: "Sankalpa@8670",
+    studentName: "",
+    regInfo: ""
+  },
+  {
+    id: "3",
+    name:"Sahnik",
+    username: "AU/2023/0009524",
+    password: "@Password7407",
+    studentName: "",
+    regInfo: ""
+  },
+  {
+    id: "4",
+    name:"Atanu",
+    username: "friend4",
+    password: "password123",
+    studentName: "",
+    regInfo: ""
+  },
+  {
+    id: "5",
+    name:"Shreyas",
+    username: "AU/2023/0009581",
+    password: "Shreyas@2005",
+    studentName: "",
+    regInfo: ""
+  }
+];
+
+// Simple College Scraping Function Using Axios and CookieJar
+async function scrapeCollegeAttendance(user, type) {
+  const jar = new CookieJar();
+  const client = wrapper(axios.create({ jar, withCredentials: true }));
+
+  try {
+    // 1. Fetch Login Page to get CSRF token
+    const baseUrl = "https://adamasknowledgecity.ac.in/student/";
+    const loginPageResp = await client.get(baseUrl + "login");
+    const $login = cheerio.load(loginPageResp.data);
+    const _token = $login('input[name="_token"]').val();
+
+    // 2. Perform Login POST
+    await client.post(baseUrl + "login", {
+      _token,
+      registration_no: user.username,
+      password: user.password,
+      login: "login"
+    }, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }
+    });
+
+    // 3. Fetch Dashbaord or Attendance page based on request
+    const targetUrl = type === "dashboard" ? baseUrl + "dashboard" : baseUrl + "attendance";
+    const targetResp = await client.get(targetUrl);
+    const $ = cheerio.load(targetResp.data);
+
+    let studentName = user.studentName;
+    let regInfo = user.regInfo;
+
+    // The student name info is only present in the dashboard page HTML
+    if (type === "dashboard") {
+      const studentNameRaw = $('#greetingMessage').next('h3').text();
+      studentName = studentNameRaw.replace(/\s+/g, ' ').trim();
+
+      const regInfoRaw = $('#greetingMessage').siblings('p').text();
+      regInfo = regInfoRaw.replace(/\s+/g, ' ').trim();
+      
+      // Update DB if found so the Attendance page can use it later
+      if (studentName || regInfo) {
+        user.studentName = studentName;
+        user.regInfo = regInfo;
+        // In a hardcoded array array objects are modified directly by reference
+      }
+    }
+
+    let attendanceData = {
+      type,
+      studentName: studentName || "Unknown Student",
+      regInfo: regInfo || "No registration found",
+      results: []
+    };
+
+    // Example actual parsing logic for dashboard
+    if (type === "dashboard") {
+      // Find each subject row
+      $('tr.clickable-subject-row').each((i, el) => {
+          // Extract the subject name, which is inside a nested div structure
+          const rawSubject = $(el).find('td').eq(0).text();
+          // The raw text includes "Click for details", so we clean it up
+          const subject = rawSubject.replace('Click for details', '').replace(/\s+/g, ' ').trim();
+          
+          const total = $(el).find('td').eq(1).text().trim();
+          const present = $(el).find('td').eq(2).text().trim();
+          const absent = $(el).find('td').eq(3).text().trim();
+          const leave = $(el).find('td').eq(4).text().trim();
+          const bioPresentRow = $(el).find('td').eq(5).text().trim();
+          const bioAbsentRow = $(el).find('td').eq(6).text().trim();
+          const markedAbsent = $(el).find('td').eq(7).text().trim();
+          const effective = $(el).find('td').eq(8).text().trim();
+          const percentage = $(el).find('td').eq(9).text().trim();
+
+          // Extract daily records from the immediate sibling row
+          const details = [];
+          const detailsRow = $(el).next('tr.attendance-details-row');
+          if (detailsRow.length) {
+            // Find all standard rows in the details table (ignoring legend rows which don't have expected structured data)
+            detailsRow.find('tbody tr').each((j, detailEl) => {
+              const dateText = $(detailEl).find('td').eq(0).text().replace(/\s+/g, ' ').trim();
+              const timeText = $(detailEl).find('td').eq(1).text().replace(/\s+/g, ' ').trim();
+              const facultyText = $(detailEl).find('td').eq(2).text().replace(/\s+/g, ' ').trim();
+
+              // Validate this is a true record row (dates will exist, legend tables won't have standard time text)
+              if (dateText && timeText && dateText.length > 5 && timeText.includes('-')) {
+                const classStatusTd = $(detailEl).find('td').eq(3);
+                const bioStatusTd = $(detailEl).find('td').eq(4);
+                const finalStatusTd = $(detailEl).find('td').eq(5);
+
+                const classPresent = classStatusTd.find('.fa-check').length > 0;
+                const classAbsent = classStatusTd.find('.fa-times').length > 0;
+                
+                const bioPresentStat = bioStatusTd.find('.fa-check').length > 0;
+                const bioAbsentStat = bioStatusTd.find('.fa-times').length > 0;
+
+                const finalPresent = finalStatusTd.find('.fa-check').length > 0;
+                const finalAbsent = finalStatusTd.find('.fa-times').length > 0;
+                const finalWarning = finalStatusTd.find('.fa-exclamation').length > 0;
+
+                const btn = $(detailEl).find('button.refresh-attendance-btn');
+                let refreshData = null;
+                if (btn.length) {
+                  refreshData = {
+                    date: btn.attr('data-date'),
+                    headerId: btn.attr('data-attendanceheaderid')
+                  };
+                }
+
+                details.push({
+                  date: dateText,
+                  time: timeText,
+                  faculty: facultyText,
+                  status: {
+                    classStatus: classPresent ? 'present' : (classAbsent ? 'absent' : 'unknown'),
+                    bioStatus: bioPresentStat ? 'present' : (bioAbsentStat ? 'absent' : 'unknown'),
+                    finalStatus: finalPresent ? 'present' : (finalAbsent ? 'absent' : (finalWarning ? 'warning' : 'unknown'))
+                  },
+                  refreshData
+                });
+              }
+            });
+          }
+
+          attendanceData.results.push({ 
+            subject, 
+            total,
+            present,
+            absent,
+            leave,
+            bioPresent: bioPresentRow,
+            bioAbsent: bioAbsentRow,
+            markedAbsent,
+            effective,
+            percentage,
+            details
+          });
+      });
+    } else {
+      // class attendance only logic
+      $('#myTable tbody tr').each((i, el) => {
+          const subject = $(el).find('td').eq(0).text().replace('&nbsp;', '').trim();
+          const total = $(el).find('td').eq(1).text().trim();
+          const present = $(el).find('td').eq(2).text().trim();
+          const absent = $(el).find('td').eq(3).text().trim();
+          const percentage = $(el).find('td').eq(4).text().trim();
+
+          if (subject) {
+            attendanceData.results.push({ 
+              subject, 
+              total,
+              present,
+              absent,
+              percentage 
+            });
+          }
+      });
+    }
+    
+    return { success: true, data: attendanceData };
+    
+  } catch (error) {
+    console.error("Scraping error:", error);
+    return { success: false, message: "Failed to scrape attendance" };
+  }
+}
+
+// Routes
+app.get("/api/users", (req, res) => {
+  const users = usersDatabase.map(u => ({
+    id: u.id,
+    name: u.name || null,
+    username: u.username,
+    studentName: u.studentName || "Guest User"
+  }));
+  res.json({ success: true, users });
+});
+
+app.post("/api/auth", async (req, res) => {
+  const { username } = req.body;
+  // password check removed since we are logging in just by clicking the profile
+  const user = usersDatabase.find(u => u.username === username);
+  if (!user) return res.status(401).json({ message: "User not found" });
+  res.json({ success: true, userId: user.id });
+});
+
+app.get("/api/attendance/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const { type } = req.query; // 'dashboard' or 'attendance'
+
+  if (type !== 'dashboard' && type !== 'attendance') {
+    return res.status(400).json({ message: "Invalid type requested" });
+  }
+
+  const user = usersDatabase.find(u => u.id === userId);
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  const scrapeResult = await scrapeCollegeAttendance(user, type);
+  res.json(scrapeResult);
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -1,0 +1,380 @@
+"use client"
+import { useState, useEffect, useRef, Fragment } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion, Variants, AnimatePresence } from 'framer-motion';
+
+export default function DashboardPage() {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance'>('dashboard');
+  
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [attendanceData, setAttendanceData] = useState<any>(null);
+  
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const [loading, setLoading] = useState(true);
+  const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/users')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setAvailableUsers(data.users);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('userId');
+    if (!storedUserId) {
+      router.push('/');
+    } else {
+      setUserId(storedUserId);
+      fetchData(storedUserId, 'dashboard');
+    }
+  }, [router]);
+
+  const fetchData = async (id: string, type: 'dashboard' | 'attendance', force = false) => {
+    if (!force) {
+      if (type === 'dashboard' && dashboardData) return;
+      if (type === 'attendance' && attendanceData) return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/attendance/${id}?type=${type}`);
+      const data = await res.json();
+      if (data.success) {
+        if (type === 'dashboard') setDashboardData(data.data);
+        else setAttendanceData(data.data);
+      } else {
+        alert(data.message);
+      }
+    } catch (e) {
+      alert("Failed to fetch data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTabSwitch = (tab: 'dashboard' | 'attendance') => {
+    setActiveTab(tab);
+    setExpandedSubject(null);
+    if (userId) {
+      fetchData(userId, tab);
+    }
+  };
+
+  const handleUserSwitch = (newUserId: string) => {
+    setDropdownOpen(false);
+    localStorage.setItem('userId', newUserId);
+    setUserId(newUserId);
+    setDashboardData(null);
+    setAttendanceData(null);
+    fetchData(newUserId, activeTab, true);
+  };
+
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.05 }
+    }
+  };
+
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 10 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+  };
+
+  const currentData = activeTab === 'dashboard' ? dashboardData : attendanceData;
+  const profileData = dashboardData || attendanceData;
+  const currentUser = availableUsers.find(u => u.id === userId);
+  
+  const displayStudentName = (profileData?.studentName && profileData.studentName !== "Unknown Student") 
+    ? profileData.studentName 
+    : (currentUser?.name || currentUser?.studentName || `User ${userId || ''}`);
+    
+  const displayRegInfo = profileData?.regInfo || currentUser?.username || 'Loading Info...';
+
+  return (
+    <div className="min-h-screen bg-[#09090b] p-4 md:p-8 font-sans text-zinc-300">
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="max-w-5xl mx-auto"
+      >
+        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6 z-50 relative">
+          <h1 className="text-xl font-medium tracking-tight text-white flex items-center gap-3">
+            <div className="w-6 h-6 rounded-md bg-white text-[#09090b] flex items-center justify-center font-bold text-xs">
+              M
+            </div>
+            SAASS Portal
+          </h1>
+          
+          <div className="flex flex-col md:flex-row items-center gap-3">
+            <div className="flex bg-[#121214] p-1 rounded-lg border border-white/5">
+              <button 
+                onClick={() => handleTabSwitch('dashboard')}
+                className={`px-4 py-1.5 rounded-md text-sm transition-all ${activeTab === 'dashboard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                Overview
+              </button>
+              <button 
+                onClick={() => handleTabSwitch('attendance')}
+                className={`px-4 py-1.5 rounded-md text-sm transition-all ${activeTab === 'attendance' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                Classes
+              </button>
+            </div>
+
+            <div className="relative" ref={dropdownRef}>
+              <button 
+                onClick={() => setDropdownOpen(!dropdownOpen)} 
+                className="flex items-center gap-2 px-4 py-1.5 bg-[#121214] border border-white/5 hover:border-white/10 text-zinc-300 text-sm rounded-lg transition-all"
+              >
+                Select Profile <span className="text-[10px] text-zinc-500">▼</span>
+              </button>
+              
+              <AnimatePresence>
+                {dropdownOpen && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 5, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 5, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-56 bg-[#121214] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col"
+                  >
+                    <div className="p-1 flex flex-col gap-0.5 max-h-64 overflow-y-auto">
+                      {availableUsers.filter(u => u.id !== userId).map(u => {
+                        const displayName = u.name || (u.studentName !== 'Guest User' && u.studentName ? u.studentName.split(' ')[0] : `User ${u.id}`);
+                        return (
+                          <button
+                            key={u.id}
+                            onClick={() => handleUserSwitch(u.id)}
+                            className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-lg transition-colors text-left"
+                          >
+                            <div className="w-6 h-6 shrink-0 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 font-medium text-[10px]">
+                              {u.username.substring(u.username.length - 2)}
+                            </div>
+                            <div className="flex flex-col overflow-hidden">
+                              <span className="text-sm font-medium text-zinc-300 truncate">{displayName}</span>
+                              <span className="text-[11px] text-zinc-600 truncate">{u.username}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                      {availableUsers.filter(u => u.id !== userId).length === 0 && (
+                        <div className="px-3 py-3 text-center text-sm text-zinc-600">No other users</div>
+                      )}
+                    </div>
+                    <div className="border-t border-white/5"></div>
+                    <div className="p-1">
+                      <button 
+                        onClick={() => { localStorage.removeItem('userId'); router.push('/'); }} 
+                        className="w-full text-left px-3 py-2 text-sm text-[#e5484d] hover:bg-red-500/10 rounded-lg transition-colors"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </div>
+
+        {/* Minimalist Profile Header */}
+        <div className="mb-8 pb-8 border-b border-white/5 flex flex-col md:flex-row items-start md:items-center gap-5">
+          <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center text-xl font-medium text-zinc-400 shrink-0">
+            {displayStudentName.charAt(0)}
+          </div>
+          <div className="flex flex-col">
+            <h2 className="text-2xl font-medium tracking-tight text-white mb-1">{displayStudentName}</h2>
+            <div className="text-zinc-500 text-sm font-mono tracking-tight">
+              {displayRegInfo}
+            </div>
+          </div>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {loading ? (
+            <motion.div 
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center py-24"
+            >
+              <div className="w-6 h-6 border-2 border-zinc-700 border-t-zinc-300 rounded-full animate-spin mb-4"></div>
+              <p className="text-zinc-500 text-sm">Syncing records...</p>
+            </motion.div>
+          ) : currentData ? (
+            <motion.div 
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-col gap-6"
+            >
+              <div className="rounded-xl border border-white/5 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-white/5 bg-[#121214] text-zinc-400">
+                        <th className="px-5 py-3 font-medium whitespace-nowrap">{activeTab === 'dashboard' ? 'Subject' : 'Course'}</th>
+                        <th className="px-5 py-3 text-center font-medium">Total</th>
+                        <th className="px-5 py-3 text-center font-medium">Attended</th>
+                        <th className="px-5 py-3 text-center font-medium">Missed</th>
+                        {activeTab === 'dashboard' && (
+                          <>
+                            <th className="px-5 py-3 text-center font-medium whitespace-nowrap">Bio Present</th>
+                            <th className="px-5 py-3 text-center font-medium whitespace-nowrap">Bio Absent</th>
+                          </>
+                        )}
+                        <th className="px-5 py-3 text-right font-medium">Rate</th>
+                      </tr>
+                    </thead>
+                    <motion.tbody 
+                      variants={containerVariants}
+                      initial="hidden"
+                      animate="show"
+                      className="divide-y divide-white/5 bg-[#09090b]"
+                    >
+                      {currentData.results.length === 0 ? (
+                        <tr><td colSpan={10} className="p-8 text-center text-zinc-600">No records found.</td></tr>
+                      ) : (
+                        currentData.results.map((rec: any, i: number) => {
+                          const val = parseFloat(rec.percentage);
+                          const isHigh = val >= 75;
+                          const isLow = val < 60;
+                          
+                          let percentageColor = isHigh ? "text-emerald-500" : isLow ? "text-[#e5484d]" : "text-amber-500";
+                          const subjName = rec.subject ? rec.subject.replace('Click for details', '').replace(/&nbsp;/g, '').trim() : '';
+                          
+                          return (
+                            <Fragment key={i}>
+                              <motion.tr 
+                                variants={itemVariants}
+                                onClick={() => activeTab === 'dashboard' ? setExpandedSubject(expandedSubject === rec.subject ? null : rec.subject) : null}
+                                className={`transition-colors ${activeTab === 'dashboard' ? 'cursor-pointer hover:bg-white/[0.04]' : 'hover:bg-white/[0.02]'} ${expandedSubject === rec.subject ? 'bg-white/[0.02]' : ''}`}
+                              >
+                                <td className="px-5 py-3.5 text-zinc-300">
+                                  <div className="flex items-center gap-2">
+                                    {activeTab === 'dashboard' && (
+                                      <span className="text-zinc-600 text-[10px] w-3 flex justify-center transition-transform" style={{ transform: expandedSubject === rec.subject ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                                        ▶
+                                      </span>
+                                    )}
+                                    <div className="truncate max-w-[180px] md:max-w-[380px]" title={subjName}>
+                                      {subjName}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-5 py-3.5 text-center text-zinc-500 font-mono">{rec.total}</td>
+                                <td className="px-5 py-3.5 text-center text-zinc-400 font-mono">{rec.present}</td>
+                                <td className="px-5 py-3.5 text-center text-zinc-400 font-mono">{rec.absent}</td>
+                                
+                                {activeTab === 'dashboard' && (
+                                  <>
+                                    <td className="px-5 py-3.5 text-center text-zinc-500 font-mono">{rec.bioPresent}</td>
+                                    <td className="px-5 py-3.5 text-center text-zinc-500 font-mono">{rec.bioAbsent}</td>
+                                  </>
+                                )}
+                                
+                                <td className={`px-5 py-3.5 text-right font-mono font-medium ${percentageColor}`}>
+                                  {rec.percentage}
+                                </td>
+                              </motion.tr>
+                              <AnimatePresence>
+                                {expandedSubject === rec.subject && rec.details && rec.details.length > 0 && activeTab === 'dashboard' && (
+                                  <motion.tr
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="bg-[#0c0c0e]"
+                                  >
+                                    <td colSpan={10} className="p-0 border-b border-white/5">
+                                      <motion.div 
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        className="p-4 md:px-8 md:py-6 overflow-x-auto border-t border-white/5 shadow-inner"
+                                      >
+                                        <div className="flex items-center justify-between mb-4">
+                                          <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">Attendance Timeline</div>
+                                          <button 
+                                            onClick={(e) => { e.stopPropagation(); if (userId) fetchData(userId, activeTab, true); }}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#121214] hover:bg-white/10 border border-white/10 shadow-sm text-zinc-300 rounded-md text-[10px] font-medium transition-colors"
+                                          >
+                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
+                                            Sync Subject
+                                          </button>
+                                        </div>
+                                        <table className="w-full text-left text-xs text-zinc-400 border-collapse">
+                                          <thead>
+                                            <tr className="text-zinc-500 border-b border-white/5">
+                                              <th className="pb-2 font-medium whitespace-nowrap">Date</th>
+                                              <th className="pb-2 font-medium whitespace-nowrap">Time</th>
+                                              <th className="pb-2 font-medium">Faculty</th>
+                                              <th className="pb-2 text-center font-medium">Class</th>
+                                              <th className="pb-2 text-center font-medium">Biometric</th>
+                                              <th className="pb-2 text-center font-medium">Final</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-white/5">
+                                            {rec.details.map((detail: any, j: number) => (
+                                              <tr key={j} className="hover:bg-white/[0.02] transition-colors">
+                                                <td className="py-3 font-mono text-zinc-300 whitespace-nowrap">{detail.date}</td>
+                                                <td className="py-3 font-mono text-[10px] text-zinc-500 whitespace-nowrap">{detail.time}</td>
+                                                <td className="py-3 truncate max-w-[120px] text-zinc-400" title={detail.faculty}>{detail.faculty}</td>
+                                                <td className="py-3 text-center">
+                                                  {detail.status.classStatus === 'present' ? <span className="text-emerald-500/80 font-mono">✓</span> : <span className="text-[#e5484d]/80 font-mono">✕</span>}
+                                                </td>
+                                                <td className="py-3 text-center">
+                                                  {detail.status.bioStatus === 'present' ? <span className="text-emerald-500/80 font-mono">✓</span> : <span className="text-[#e5484d]/80 font-mono">✕</span>}
+                                                </td>
+                                                <td className="py-3 text-center">
+                                                  {detail.status.finalStatus === 'present' ? <span className="text-emerald-500 font-bold font-mono">P</span> : detail.status.finalStatus === 'absent' ? <span className="text-[#e5484d] font-bold font-mono">A</span> : <span className="text-amber-500 font-bold font-mono">W</span>}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </motion.div>
+                                    </td>
+                                  </motion.tr>
+                                )}
+                              </AnimatePresence>
+                            </Fragment>
+                          );
+                        })
+                      )}
+                    </motion.tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+      </motion.div>
+    </div>
+  );
+}

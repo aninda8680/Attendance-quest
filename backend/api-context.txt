@@ -1,0 +1,50 @@
+=== get-studentDetailsId ===
+<i class="fa fa-spinner fa-spin"></i> Refreshing...');
+        $btn.prop('disabled', true);
+        $btn.addClass('btn-loading');
+        
+        // Function to restore button state
+        function restoreButtonState() {
+            $btn.html(originalHtml);
+            $btn.prop('disabled', false);
+            $btn.removeClass('btn-loading');
+        }
+       
+        // Get student registration number and call sync API
+        $.ajax({
+            url: 'https://adamasknowledgecity.ac.in/ajax/get-studentDetailsId',
+            type: 'GET',
+            data: {
+                id: 9030
+            },
+            success: function(studentData) {
+                if (studentData && studentData.registration_no) {
+                    // Call fetchAttendance to sync data
+                    $.ajax({
+                        url: 'https://adamasknowledgecity.ac.in/student/attendance/update-biometric',
+                        type: 'POST',
+                        data: {
+                            _token: 'VaaWoCfAR5YWRoLu9pa1UuHj1t2bDPT5P6xwuuf4',
+                            date: date,
+                            t_rel_students_details_id: studentData.t_rel_students_details_id,
+                            t_rel_regular_class_attendance_header_id: attendanceheaderid,
+                            channel:'student_portal',
+                        },
+                        success: function(syncResponse) {
+                            // After sync, fetch the updated attendance status
+                            $.ajax({
+                                url: 'https://adamasknowledgecity.ac.in/ajax/refreshAttendanceStatus',
+                                type: 'POST',
+                                data: {
+                                    date: date,
+                                    attendanceheaderid: attendanceheaderid,
+                                    _token: 'VaaWoCfAR5YWRoLu9pa1UuHj1t2bDPT5P6xwuuf4'
+                                },
+                                success: function(response) {
+                                    if (response.success) {
+                                        // Update the status badges in the row with icons
+                                        var $statusCells = $row.find('td');
+                                       
+                                        // Update Class Status (4th column, index 3)
+                                        var classIcon = response.class_status_text === 'Present' ? 'fa-check' : 'fa-
+
