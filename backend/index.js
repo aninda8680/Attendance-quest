@@ -39,8 +39,8 @@ const usersDatabase = [
   {
     id: "4",
     name:"Atanu",
-    username: "friend4",
-    password: "password123",
+    username: "AU/2023/0009476",
+    password: "",
     studentName: "",
     regInfo: ""
   },
