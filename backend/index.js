@@ -5,54 +5,49 @@ const cheerio = require("cheerio");
 const { wrapper } = require("axios-cookiejar-support");
 const { CookieJar } = require("tough-cookie");
 require("dotenv").config();
+const mongoose = require("mongoose");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Hardcoded array of 5 friends
-const usersDatabase = [
-  {
-    id: "1", // Use a simple ID for frontend referencing
-    name:"Aninda",
-    username: "AU/2023/0009649", // Registration No. for portal
-    password: "Aninda@8680",     // Password for portal
-    studentName: "", // Cached student name initially empty
-    regInfo: ""      // Cached registration string initially empty
-  },
-  {
-    id: "2",
-    name:"Sankalpa",
-    username: "AU/2023/0009361",
-    password: "Sankalpa@8670",
-    studentName: "",
-    regInfo: ""
-  },
-  {
-    id: "3",
-    name:"Sahnik",
-    username: "AU/2023/0009524",
-    password: "@Password7407",
-    studentName: "",
-    regInfo: ""
-  },
-  {
-    id: "4",
-    name:"Atanu",
-    username: "AU/2023/0009476",
-    password: "",
-    studentName: "",
-    regInfo: ""
-  },
-  {
-    id: "5",
-    name:"Shreyas",
-    username: "AU/2023/0009581",
-    password: "Shreyas@2005",
-    studentName: "",
-    regInfo: ""
-  }
-];
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.log('MongoDB connection error:', err));
+
+const dashboardSchema = new mongoose.Schema({
+  subject: String,
+  total: String,
+  present: String,
+  absent: String,
+  bioPresent: String,
+  bioAbsent: String,
+  percentage: String
+}, { _id: false });
+
+const attendanceSchema = new mongoose.Schema({
+  subject: String,
+  total: String,
+  present: String,
+  absent: String,
+  percentage: String
+}, { _id: false });
+
+const userSchema = new mongoose.Schema({
+  id: { type: String, unique: true },
+  name: String,
+  username: { type: String, unique: true },
+  password: { type: String, select: false },
+  studentName: { type: String, default: "" },
+  regInfo: { type: String, default: "" },
+  dashboard: [dashboardSchema],
+  attendance: [attendanceSchema]
+});
+
+const User = mongoose.model("User", userSchema);
+
+
 
 // Simple College Scraping Function Using Axios and CookieJar
 async function scrapeCollegeAttendance(user, type) {
@@ -108,7 +103,6 @@ async function scrapeCollegeAttendance(user, type) {
       if (studentName || regInfo) {
         user.studentName = studentName;
         user.regInfo = regInfo;
-        // In a hardcoded array array objects are modified directly by reference
       }
     }
 
@@ -223,6 +217,28 @@ async function scrapeCollegeAttendance(user, type) {
       });
     }
     
+    // Save scraped data to DB
+    if (type === "dashboard") {
+      user.dashboard = attendanceData.results.map(res => ({
+        subject: res.subject,
+        total: res.total,
+        present: res.present,
+        absent: res.absent,
+        bioPresent: res.bioPresent,
+        bioAbsent: res.bioAbsent,
+        percentage: res.percentage
+      }));
+    } else if (type === "attendance") {
+      user.attendance = attendanceData.results.map(res => ({
+        subject: res.subject,
+        total: res.total,
+        present: res.present,
+        absent: res.absent,
+        percentage: res.percentage
+      }));
+    }
+    await user.save();
+
     return { success: true, data: attendanceData };
     
   } catch (error) {
@@ -232,22 +248,32 @@ async function scrapeCollegeAttendance(user, type) {
 }
 
 // Routes
-app.get("/api/users", (req, res) => {
-  const users = usersDatabase.map(u => ({
-    id: u.id,
-    name: u.name || null,
-    username: u.username,
-    studentName: u.studentName || "Guest User"
-  }));
-  res.json({ success: true, users });
+app.get("/api/users", async (req, res) => {
+  try {
+    const users = await User.find({});
+    const formattedUsers = users.map(u => ({
+      id: u.id,
+      name: u.name || null,
+      username: u.username,
+      studentName: u.studentName || "Guest User"
+    }));
+    res.json({ success: true, users: formattedUsers });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
 app.post("/api/auth", async (req, res) => {
   const { username } = req.body;
-  // password check removed since we are logging in just by clicking the profile
-  const user = usersDatabase.find(u => u.username === username);
-  if (!user) return res.status(401).json({ message: "User not found" });
-  res.json({ success: true, userId: user.id });
+  try {
+    const user = await User.findOne({ username });
+    if (!user) return res.status(401).json({ message: "User not found" });
+    res.json({ success: true, userId: user.id });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
 app.get("/api/attendance/:userId", async (req, res) => {
@@ -258,11 +284,16 @@ app.get("/api/attendance/:userId", async (req, res) => {
     return res.status(400).json({ message: "Invalid type requested" });
   }
 
-  const user = usersDatabase.find(u => u.id === userId);
-  if (!user) return res.status(404).json({ message: "User not found" });
+  try {
+    const user = await User.findOne({ id: userId }).select('+password');
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-  const scrapeResult = await scrapeCollegeAttendance(user, type);
-  res.json(scrapeResult);
+    const scrapeResult = await scrapeCollegeAttendance(user, type);
+    res.json(scrapeResult);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
 const PORT = process.env.PORT || 5000;
