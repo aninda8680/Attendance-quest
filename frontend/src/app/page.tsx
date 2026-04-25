@@ -1,8 +1,10 @@
 "use client"
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useTheme } from '@/components/ThemeProvider';
 import { RegisterModal } from '@/components/RegisterModal';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function LoginPage() {
   const { theme, toggleTheme } = useTheme();
@@ -21,7 +23,7 @@ export default function LoginPage() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/users');
+        const res = await fetch(`${API_BASE}/api/users`);
         const data = await res.json();
         if (data.success) setUsers(data.users);
       } catch (error) {
@@ -37,7 +39,7 @@ export default function LoginPage() {
 
   const handleLogin = async (username: string) => {
     try {
-      const res = await fetch('http://localhost:5000/api/auth', {
+      const res = await fetch(`${API_BASE}/api/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username })
@@ -57,13 +59,13 @@ export default function LoginPage() {
 
   const onRegisterSuccess = async () => {
     // Refresh users
-    const res = await fetch('http://localhost:5000/api/users');
+    const res = await fetch(`${API_BASE}/api/users`);
     const data = await res.json();
     if (data.success) setUsers(data.users);
     setIsRegistering(false);
   };
 
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
@@ -71,9 +73,9 @@ export default function LoginPage() {
     }
   };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } }
+    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } }
   };
 
   const isDark = theme === 'dark';

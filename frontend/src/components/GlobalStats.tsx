@@ -11,6 +11,8 @@ import {
 } from 'recharts';
 import { motion } from 'framer-motion';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 interface GlobalStatsProps {
   currentUserId: string | null;
   onUserSwitch: (userId: string) => void;
@@ -26,7 +28,7 @@ export function GlobalStats({ currentUserId, onUserSwitch, isDark }: GlobalStats
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/users/stats');
+        const res = await fetch(`${API_BASE}/api/users/stats`);
         const data = await res.json();
         if (data.success) {
           // Sort by name for a stable X-axis across sessions
@@ -134,7 +136,7 @@ export function GlobalStats({ currentUserId, onUserSwitch, isDark }: GlobalStats
               displayValue: selectedSubject === 'Overall' ? d.attendancePct : (d.subjects?.[selectedSubject] || 0)
             }))}
             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-            onClick={(state) => {
+            onClick={(state: any) => {
               if (state && state.activePayload) {
                 onUserSwitch(state.activePayload[0].payload.id);
               }

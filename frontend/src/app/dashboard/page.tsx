@@ -5,6 +5,8 @@ import { motion, Variants, AnimatePresence } from 'framer-motion';
 import { RegisterModal } from '@/components/RegisterModal';
 import { GlobalStats } from '@/components/GlobalStats';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 export default function DashboardPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance' | 'leaderboard'>('dashboard');
@@ -23,7 +25,7 @@ export default function DashboardPage() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/users');
+      const res = await fetch(`${API_BASE}/api/users`);
       const data = await res.json();
       if (data.success) setAvailableUsers(data.users);
     } catch (error) {}
@@ -71,7 +73,7 @@ export default function DashboardPage() {
 
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/attendance/${id}?type=${type}`);
+      const res = await fetch(`${API_BASE}/api/attendance/${id}?type=${type}`);
       const data = await res.json();
       if (data.success) {
         if (type === 'dashboard') setDashboardData(data.data);
