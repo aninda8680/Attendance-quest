@@ -248,6 +248,43 @@ async function scrapeCollegeAttendance(user, type) {
 }
 
 // Routes
+app.post("/api/users", async (req, res) => {
+  const { username, password, name } = req.body;
+  
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: "Username and password required" });
+  }
+
+  try {
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: "Username already exists" });
+    }
+
+    // Generate unique numeric ID
+    const allUsers = await User.find({}).select('id');
+    const existingIds = allUsers.map(u => parseInt(u.id)).filter(id => !isNaN(id));
+    const nextIdVal = existingIds.length > 0 ? Math.max(...existingIds) + 1 : 1;
+    const nextId = String(nextIdVal).padStart(4, '0');
+
+    const newUser = new User({
+      id: nextId,
+      username,
+      password,
+      name: name || null,
+      studentName: name || "Guest User",
+      dashboard: [],
+      attendance: []
+    });
+
+    await newUser.save();
+    res.json({ success: true, userId: newUser.id });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
 app.get("/api/users", async (req, res) => {
   try {
     const users = await User.find({});
@@ -258,6 +295,50 @@ app.get("/api/users", async (req, res) => {
       studentName: u.studentName || "Guest User"
     }));
     res.json({ success: true, users: formattedUsers });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+app.get("/api/users/stats", async (req, res) => {
+  try {
+    const users = await User.find({});
+    const stats = users.map(user => {
+      // Aggregate Dashboard Percentage
+      let dTotal = 0, dPresent = 0;
+      user.dashboard.forEach(s => {
+        const t = parseInt(s.total) || 0;
+        const p = parseInt(s.present) || 0;
+        dTotal += t;
+        dPresent += p;
+      });
+      const dPct = dTotal > 0 ? parseFloat(((dPresent / dTotal) * 100).toFixed(2)) : 0;
+
+      // Aggregate Attendance Percentage and Map Subjects
+      let aTotal = 0, aPresent = 0;
+      const subjectsMap = {};
+      user.attendance.forEach(s => {
+        const t = parseInt(s.total) || 0;
+        const p = parseInt(s.present) || 0;
+        aTotal += t;
+        aPresent += p;
+        if (s.subject && s.percentage) {
+          subjectsMap[s.subject] = parseFloat(s.percentage) || 0;
+        }
+      });
+      const aPct = aTotal > 0 ? parseFloat(((aPresent / aTotal) * 100).toFixed(2)) : 0;
+
+      return {
+        id: user.id,
+        name: user.studentName || user.name || `User ${user.id}`,
+        username: user.username,
+        dashboardPct: dPct,
+        attendancePct: aPct,
+        subjects: subjectsMap
+      };
+    });
+    res.json({ success: true, stats });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Server error" });

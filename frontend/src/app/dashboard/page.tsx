@@ -2,21 +2,32 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, Variants, AnimatePresence } from 'framer-motion';
+import { RegisterModal } from '@/components/RegisterModal';
+import { GlobalStats } from '@/components/GlobalStats';
 
 export default function DashboardPage() {
   const [userId, setUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance' | 'leaderboard'>('dashboard');
   
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [attendanceData, setAttendanceData] = useState<any>(null);
   
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isAddingProfile, setIsAddingProfile] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const [loading, setLoading] = useState(true);
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
   const router = useRouter();
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/users');
+      const data = await res.json();
+      if (data.success) setAvailableUsers(data.users);
+    } catch (error) {}
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -29,12 +40,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/users')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) setAvailableUsers(data.users);
-      })
-      .catch(() => {});
+    fetchUsers();
   }, []);
 
   useEffect(() => {
@@ -47,7 +53,17 @@ export default function DashboardPage() {
     }
   }, [router]);
 
-  const fetchData = async (id: string, type: 'dashboard' | 'attendance', force = false) => {
+  const onRegisterSuccess = (newUserId: string) => {
+    fetchUsers();
+    setIsAddingProfile(false);
+  };
+
+  const fetchData = async (id: string, type: 'dashboard' | 'attendance' | 'leaderboard', force = false) => {
+    if (type === 'leaderboard') {
+      setLoading(false);
+      return;
+    }
+    
     if (!force) {
       if (type === 'dashboard' && dashboardData) return;
       if (type === 'attendance' && attendanceData) return;
@@ -70,10 +86,10 @@ export default function DashboardPage() {
     }
   };
 
-  const handleTabSwitch = (tab: 'dashboard' | 'attendance') => {
+  const handleTabSwitch = (tab: 'dashboard' | 'attendance' | 'leaderboard') => {
     setActiveTab(tab);
     setExpandedSubject(null);
-    if (userId) {
+    if (userId && tab !== 'leaderboard') {
       fetchData(userId, tab);
     }
   };
@@ -84,7 +100,13 @@ export default function DashboardPage() {
     setUserId(newUserId);
     setDashboardData(null);
     setAttendanceData(null);
-    fetchData(newUserId, activeTab, true);
+    
+    if (activeTab === 'leaderboard') {
+      setActiveTab('dashboard');
+      fetchData(newUserId, 'dashboard', true);
+    } else {
+      fetchData(newUserId, activeTab, true);
+    }
   };
 
   const containerVariants: Variants = {
@@ -127,92 +149,139 @@ export default function DashboardPage() {
           </h1>
           
           <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="flex bg-[#121214] p-1 rounded-lg border border-white/5">
+            <div className="flex p-1 rounded-lg border bg-[#121214] border-white/5">
               <button 
                 onClick={() => handleTabSwitch('dashboard')}
                 className={`px-4 py-1.5 rounded-md text-sm transition-all ${activeTab === 'dashboard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
-                Overview
+                Dashboard View
               </button>
               <button 
                 onClick={() => handleTabSwitch('attendance')}
                 className={`px-4 py-1.5 rounded-md text-sm transition-all ${activeTab === 'attendance' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
-                Classes
+                Attendance View
               </button>
             </div>
 
-            <div className="relative" ref={dropdownRef}>
-              <button 
-                onClick={() => setDropdownOpen(!dropdownOpen)} 
-                className="flex items-center gap-2 px-4 py-1.5 bg-[#121214] border border-white/5 hover:border-white/10 text-zinc-300 text-sm rounded-lg transition-all"
+            <button 
+              onClick={() => handleTabSwitch('leaderboard')}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm transition-all border group ${
+                activeTab === 'leaderboard' 
+                ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.1)]' 
+                : 'bg-[#121214] border-white/5 text-zinc-500 hover:text-zinc-300 hover:border-white/10'
+              }`}
+            >
+              <svg 
+                className={`w-4 h-4 transition-colors ${activeTab === 'leaderboard' ? 'text-cyan-400' : 'text-zinc-600 group-hover:text-zinc-400'}`} 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
               >
-                Select Profile <span className="text-[10px] text-zinc-500">▼</span>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+              </svg>
+              Leaderboard
+            </button>
+
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setIsAddingProfile(true)}
+                className="flex items-center gap-2 px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/20 hover:bg-cyan-500/20 text-cyan-400 text-sm rounded-lg transition-all font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                New Profile
               </button>
-              
-              <AnimatePresence>
-                {dropdownOpen && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 5, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 5, scale: 0.98 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-56 bg-[#121214] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col"
-                  >
-                    <div className="p-1 flex flex-col gap-0.5 max-h-64 overflow-y-auto">
-                      {availableUsers.filter(u => u.id !== userId).map(u => {
-                        const displayName = u.name || (u.studentName !== 'Guest User' && u.studentName ? u.studentName.split(' ')[0] : `User ${u.id}`);
-                        return (
-                          <button
-                            key={u.id}
-                            onClick={() => handleUserSwitch(u.id)}
-                            className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-lg transition-colors text-left"
-                          >
-                            <div className="w-6 h-6 shrink-0 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 font-medium text-[10px]">
-                              {u.username.substring(u.username.length - 2)}
-                            </div>
-                            <div className="flex flex-col overflow-hidden">
-                              <span className="text-sm font-medium text-zinc-300 truncate">{displayName}</span>
-                              <span className="text-[11px] text-zinc-600 truncate">{u.username}</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                      {availableUsers.filter(u => u.id !== userId).length === 0 && (
-                        <div className="px-3 py-3 text-center text-sm text-zinc-600">No other users</div>
-                      )}
-                    </div>
-                    <div className="border-t border-white/5"></div>
-                    <div className="p-1">
-                      <button 
-                        onClick={() => { localStorage.removeItem('userId'); router.push('/'); }} 
-                        className="w-full text-left px-3 py-2 text-sm text-[#e5484d] hover:bg-red-500/10 rounded-lg transition-colors"
-                      >
-                        Sign Out
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+
+              <div className="relative" ref={dropdownRef}>
+                <button 
+                  onClick={() => setDropdownOpen(!dropdownOpen)} 
+                  className="flex items-center gap-2 px-4 py-1.5 bg-[#121214] border border-white/5 hover:border-white/10 text-zinc-300 text-sm rounded-lg transition-all"
+                >
+                  Select Profile <span className="text-[10px] text-zinc-500">▼</span>
+                </button>
+                
+                <AnimatePresence>
+                  {dropdownOpen && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 5, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 5, scale: 0.98 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-2 w-56 bg-[#121214] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col"
+                    >
+                      <div className="p-1 flex flex-col gap-0.5 max-h-64 overflow-y-auto">
+                        {availableUsers.filter(u => u.id !== userId).map(u => {
+                          const displayName = u.name || (u.studentName !== 'Guest User' && u.studentName ? u.studentName.split(' ')[0] : `User ${u.id}`);
+                          return (
+                            <button
+                              key={u.id}
+                              onClick={() => handleUserSwitch(u.id)}
+                              className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-lg transition-colors text-left"
+                            >
+                              <div className="w-6 h-6 shrink-0 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 font-medium text-[10px]">
+                                {u.username.substring(u.username.length - 2)}
+                              </div>
+                              <div className="flex flex-col overflow-hidden">
+                                <span className="text-sm font-medium text-zinc-300 truncate">{displayName}</span>
+                                <span className="text-[11px] text-zinc-600 truncate">{u.username}</span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                        {availableUsers.filter(u => u.id !== userId).length === 0 && (
+                          <div className="px-3 py-3 text-center text-sm text-zinc-600">No other users</div>
+                        )}
+                      </div>
+                      <div className="border-t border-white/5"></div>
+                      <div className="p-1">
+                        <button 
+                          onClick={() => { localStorage.removeItem('userId'); router.push('/'); }} 
+                          className="w-full text-left px-3 py-2 text-sm text-[#e5484d] hover:bg-red-500/10 rounded-lg transition-colors"
+                        >
+                          Sign Out
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Minimalist Profile Header */}
-        <div className="mb-8 pb-8 border-b border-white/5 flex flex-col md:flex-row items-start md:items-center gap-5">
-          <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center text-xl font-medium text-zinc-400 shrink-0">
-            {displayStudentName.charAt(0)}
-          </div>
-          <div className="flex flex-col">
-            <h2 className="text-2xl font-medium tracking-tight text-white mb-1">{displayStudentName}</h2>
-            <div className="text-zinc-500 text-sm font-mono tracking-tight">
-              {displayRegInfo}
+        <RegisterModal 
+          isOpen={isAddingProfile}
+          onClose={() => setIsAddingProfile(false)}
+          onSuccess={onRegisterSuccess}
+          isDark={true}
+        />
+
+        {/* Minimalist Profile Header - Hidden on Leaderboard */}
+        {activeTab !== 'leaderboard' && (
+          <div className="mb-8 pb-8 border-b border-white/5 flex flex-col md:flex-row items-start md:items-center gap-5">
+            <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center text-xl font-medium text-zinc-400 shrink-0">
+              {displayStudentName.charAt(0)}
+            </div>
+            <div className="flex flex-col">
+              <h2 className="text-2xl font-medium tracking-tight text-white mb-1">{displayStudentName}</h2>
+              <div className="text-zinc-500 text-sm font-mono tracking-tight">
+                {displayRegInfo}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <AnimatePresence mode="wait">
-          {loading ? (
+          {activeTab === 'leaderboard' ? (
+            <GlobalStats 
+              key="leaderboard"
+              currentUserId={userId}
+              onUserSwitch={handleUserSwitch}
+              isDark={true}
+            />
+          ) : loading ? (
             <motion.div 
               key="loading"
               initial={{ opacity: 0 }}

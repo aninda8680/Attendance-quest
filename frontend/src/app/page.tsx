@@ -1,14 +1,14 @@
 "use client"
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/components/ThemeProvider';
+import { RegisterModal } from '@/components/RegisterModal';
 
 export default function LoginPage() {
   const { theme, toggleTheme } = useTheme();
   const [users, setUsers] = useState<{ id: number; username: string; name?: string; studentName?: string }[]>([]);
   const [fetching, setFetching] = useState(true);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [cursor, setCursor] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -19,23 +19,21 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    const animFrame = requestAnimationFrame(() => {
-      setCursor(mousePos);
-    });
-    return () => cancelAnimationFrame(animFrame);
-  }, [mousePos]);
-
-  useEffect(() => {
-    fetch('http://localhost:5000/api/users')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setUsers(data.users);
-        }
-      })
-      .catch(() => console.error("Error fetching users"))
-      .finally(() => setFetching(false));
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/users');
+        const data = await res.json();
+        if (data.success) setUsers(data.users);
+      } catch (error) {
+        console.error("Error fetching users");
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchUsers();
   }, []);
+
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const handleLogin = async (username: string) => {
     try {
@@ -55,6 +53,14 @@ export default function LoginPage() {
     } catch {
       alert('Failed to connect to backend.');
     }
+  };
+
+  const onRegisterSuccess = async () => {
+    // Refresh users
+    const res = await fetch('http://localhost:5000/api/users');
+    const data = await res.json();
+    if (data.success) setUsers(data.users);
+    setIsRegistering(false);
   };
 
   const containerVariants = {
@@ -85,9 +91,8 @@ export default function LoginPage() {
             : 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20'
         }`}
         style={{ 
-          left: cursor.x - 192, 
-          top: cursor.y - 192,
-          transition: 'left 0.2s ease-out, top 0.2s ease-out'
+          left: mousePos.x - 192, 
+          top: mousePos.y - 192
         }}
       />
 
@@ -107,7 +112,22 @@ export default function LoginPage() {
         animate={{ opacity: 1 }}
         className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6 md:p-10"
       >
-        <div className="absolute top-6 right-6 md:top-8 md:right-10">
+        <div className="absolute top-6 right-6 md:top-8 md:right-10 flex items-center gap-3">
+          <button
+            onClick={() => setIsRegistering(true)}
+            className={`h-12 px-5 rounded-xl border transition-all duration-300 flex items-center gap-2 group font-medium text-sm ${
+              isDark 
+                ? 'bg-zinc-900/80 border-zinc-800 hover:border-cyan-500/50 text-zinc-300 hover:text-cyan-400' 
+                : 'bg-zinc-100/80 border-zinc-200 hover:border-cyan-500 text-zinc-600 hover:text-cyan-600'
+            }`}
+            aria-label="Add new profile"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Add Profile</span>
+          </button>
+
           <button
             onClick={toggleTheme}
             className={`relative w-12 h-12 rounded-xl border transition-all duration-300 ${
@@ -142,38 +162,8 @@ export default function LoginPage() {
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="mb-12 text-center"
         >
-          <div className="flex items-center justify-center gap-3 mb-6">
-            <div className="relative">
-              <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg transition-all duration-300 ${
-                isDark ? 'shadow-cyan-500/25' : 'shadow-cyan-500/30'
-              }`}>
-                <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                isDark ? 'bg-emerald-500 border-zinc-900' : 'bg-emerald-500 border-white'
-              }`}>
-                <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-              </div>
-            </div>
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">
-            <span className={`bg-clip-text text-transparent bg-gradient-to-r transition-all duration-300 ${
-              isDark 
-                ? 'from-white via-zinc-300 to-white' 
-                : 'from-zinc-900 via-zinc-700 to-zinc-900'
-            }`}>SAASS</span>
-            <span className="text-cyan-500">.</span>
-          </h1>
-          <div className="flex items-center justify-center gap-2">
-            <span className={`text-xs font-mono px-2 py-1 rounded transition-colors duration-300 ${
-              isDark ? 'text-zinc-400 bg-zinc-800/50' : 'text-zinc-400 bg-zinc-100'
-            }`}>v2.4.1</span>
-            <span className="text-xs font-mono text-emerald-600 bg-emerald-50 px-2 py-1 rounded">ONLINE</span>
-          </div>
           <p className={`text-sm mt-4 font-medium transition-colors duration-300 ${
-            isDark ? 'text-zinc-400' : 'text-zinc-500'
+            isDark ? 'text-zinc-500' : 'text-zinc-600'
           }`}>Select your profile to continue</p>
         </motion.div>
         
@@ -210,7 +200,6 @@ export default function LoginPage() {
                 }`}
               >
                 <div className={`absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity`} />
-                
                 <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-cyan-500/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity" />
                 
                 <div className="relative flex items-start gap-4">
@@ -221,15 +210,6 @@ export default function LoginPage() {
                         : 'bg-gradient-to-br from-zinc-100 to-zinc-200 text-zinc-600 group-hover:from-cyan-500 group-hover:to-blue-600 group-hover:text-white'
                     }`}>
                       {u.username.length >= 2 ? u.username.substring(u.username.length - 2).toUpperCase() : '?'}
-                    </div>
-                    <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                      isDark
-                        ? 'bg-zinc-900 border-zinc-800 group-hover:border-cyan-500'
-                        : 'bg-white border-zinc-200 group-hover:border-cyan-500'
-                    }`}>
-                      <svg className={`w-2.5 h-2.5 transition-colors ${isDark ? 'text-zinc-500' : 'text-zinc-400'} group-hover:text-cyan-500`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
-                      </svg>
                     </div>
                   </div>
                   
@@ -263,22 +243,8 @@ export default function LoginPage() {
                 </div>
               </motion.button>
             ))}
-            
-            {users.length === 0 && !fetching && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className={`col-span-full flex flex-col items-center justify-center p-12 rounded-2xl border-2 border-dashed transition-colors ${
-                  isDark ? 'bg-zinc-900/50 border-zinc-800' : 'bg-zinc-50 border-zinc-200'
-                }`}
-              >
-                <svg className={`w-12 h-12 mb-4 ${isDark ? 'text-zinc-700' : 'text-zinc-300'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className={`text-sm ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>No profiles found.</p>
-                <p className={`text-xs mt-1 ${isDark ? 'text-zinc-600' : 'text-zinc-300'}`}>Contact administrator</p>
-              </motion.div>
-            )}
+
+
           </motion.div>
         )}
 
@@ -298,6 +264,14 @@ export default function LoginPage() {
           <span>AUTH_PORTAL</span>
         </motion.div>
       </motion.div>
+      
+      {/* Registration Modal */}
+      <RegisterModal 
+        isOpen={isRegistering}
+        onClose={() => setIsRegistering(false)}
+        onSuccess={onRegisterSuccess}
+        isDark={isDark}
+      />
     </div>
   );
 }
