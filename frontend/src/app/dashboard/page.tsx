@@ -25,10 +25,14 @@ export default function DashboardPage() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/users`);
+      const res = await fetch(`${API_BASE}/api/users`, {
+        cache: 'no-store'
+      });
       const data = await res.json();
       if (data.success) setAvailableUsers(data.users);
-    } catch (error) {}
+    } catch (error) {
+      console.error("Error fetching users", error);
+    }
   };
 
   useEffect(() => {
@@ -73,7 +77,9 @@ export default function DashboardPage() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/attendance/${id}?type=${type}`);
+      const res = await fetch(`${API_BASE}/api/attendance/${id}?type=${type}`, {
+        cache: 'no-store'
+      });
       const data = await res.json();
       if (data.success) {
         if (type === 'dashboard') setDashboardData(data.data);

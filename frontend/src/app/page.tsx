@@ -23,11 +23,14 @@ export default function LoginPage() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/users`);
+        const res = await fetch(`${API_BASE}/api/users`, {
+          // Next.js uses caching by default. We want to force it to refetch for testing.
+          cache: 'no-store'
+        });
         const data = await res.json();
         if (data.success) setUsers(data.users);
       } catch (error) {
-        console.error("Error fetching users");
+        console.error("Error fetching users", error);
       } finally {
         setFetching(false);
       }
@@ -42,7 +45,8 @@ export default function LoginPage() {
       const res = await fetch(`${API_BASE}/api/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username })
+        body: JSON.stringify({ username }),
+        cache: 'no-store'
       });
       const data = await res.json();
       
@@ -59,7 +63,7 @@ export default function LoginPage() {
 
   const onRegisterSuccess = async () => {
     // Refresh users
-    const res = await fetch(`${API_BASE}/api/users`);
+    const res = await fetch(`${API_BASE}/api/users`, { cache: 'no-store' });
     const data = await res.json();
     if (data.success) setUsers(data.users);
     setIsRegistering(false);
