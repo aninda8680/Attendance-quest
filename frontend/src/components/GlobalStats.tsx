@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { motion } from 'framer-motion';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? 'https://attendance-quest-backend.onrender.com' : 'http://localhost:5000');
 
 interface GlobalStatsProps {
   currentUserId: string | null;
