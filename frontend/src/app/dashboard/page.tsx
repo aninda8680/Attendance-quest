@@ -268,15 +268,99 @@ export default function DashboardPage() {
 
         {/* Minimalist Profile Header - Hidden on Leaderboard */}
         {activeTab !== 'leaderboard' && (
-          <div className="mb-8 pb-8 border-b border-white/5 flex flex-col md:flex-row items-start md:items-center gap-5">
-            <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center text-xl font-medium text-zinc-400 shrink-0">
-              {displayStudentName.charAt(0)}
-            </div>
-            <div className="flex flex-col">
-              <h2 className="text-2xl font-medium tracking-tight text-white mb-1">{displayStudentName}</h2>
-              <div className="text-zinc-500 text-sm font-mono tracking-tight">
-                {displayRegInfo}
+          <div className="mb-8 pb-8 border-b border-white/5 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+            <div className="flex items-center gap-5">
+              <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center text-xl font-medium text-zinc-400 shrink-0">
+                {displayStudentName.charAt(0)}
               </div>
+              <div className="flex flex-col">
+                <h2 className="text-2xl font-medium tracking-tight text-white mb-1">{displayStudentName}</h2>
+                <div className="text-zinc-500 text-sm font-mono tracking-tight">
+                  {displayRegInfo}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center flex-wrap gap-3 w-full md:w-auto mt-4 md:mt-0">
+            {(() => {
+              const getPercentage = (data: any) => {
+                if (!data?.results) return null;
+                
+                // First check if the college provided a TOTAL SUMMARY row
+                const summaryRow = data.results.find((r: any) => r.subject && r.subject.toUpperCase().includes('TOTAL SUMMARY'));
+                if (summaryRow && summaryRow.percentage) {
+                  return summaryRow.percentage.replace('%', '');
+                }
+
+                // Otherwise, calculate using the college's official formula:
+                // (Total Present + Total Leave - Total Marked Absent) / Total Classes * 100
+                let total = 0;
+                let present = 0;
+                let leave = 0;
+                let markedAbsent = 0;
+                
+                // Exclude any stray summary rows just in case
+                const validResults = data.results.filter((r: any) => !r.subject || !r.subject.toUpperCase().includes('TOTAL SUMMARY'));
+                
+                validResults.forEach((r: any) => {
+                  total += parseInt(r.total) || 0;
+                  present += parseInt(r.present) || 0;
+                  leave += parseInt(r.leave) || 0;
+                  markedAbsent += parseInt(r.markedAbsent) || 0;
+                });
+                
+                return total > 0 ? (((present + leave - markedAbsent) / total) * 100).toFixed(2) : null;
+              };
+
+              const dashboardPct = getPercentage(dashboardData);
+              const attendancePct = getPercentage(attendanceData);
+
+              const renderBox = (label: string, percentage: string | null, active: boolean) => {
+                if (!percentage) return (
+                  <div className={`flex flex-col items-end px-4 py-2 rounded-xl border border-white/5 bg-white/[0.02] shrink-0 ${!active ? 'opacity-50' : ''}`}>
+                    <span className="text-[10px] font-semibold tracking-wider uppercase opacity-50 mb-0.5">{label}</span>
+                    <span className="text-xl font-bold font-mono text-zinc-600 whitespace-nowrap">--.--%</span>
+                  </div>
+                );
+                
+                const val = parseFloat(percentage);
+                const isHigh = val >= 75;
+                const isLow = val < 60;
+                const colorClass = isHigh ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" : isLow ? "text-[#e5484d] border-[#e5484d]/20 bg-[#e5484d]/5" : "text-amber-500 border-amber-500/20 bg-amber-500/5";
+                
+                return (
+                  <div className={`flex flex-col items-end px-4 py-2 rounded-xl border ${colorClass} shadow-lg shadow-black/20 shrink-0 ${!active ? 'opacity-60 scale-95' : 'scale-100'} transition-all`}>
+                    <span className="text-[10px] font-semibold tracking-wider uppercase opacity-80 mb-0.5 whitespace-nowrap">{label}</span>
+                    <span className="text-2xl font-bold font-mono tracking-tighter leading-none whitespace-nowrap">
+                      {percentage}<span className="text-sm opacity-70 ml-0.5">%</span>
+                    </span>
+                  </div>
+                );
+              };
+
+              return (
+                <div className="flex items-center gap-3">
+                  {renderBox("Dashboard", dashboardPct, activeTab === 'dashboard')}
+                  {renderBox("Attendance", attendancePct, activeTab === 'attendance')}
+                  
+                  <button 
+                    onClick={() => userId && fetchData(userId, activeTab, true)}
+                    disabled={loading}
+                    className={`ml-2 flex items-center justify-center w-10 h-10 rounded-xl border border-white/10 bg-[#121214] text-zinc-400 hover:text-white hover:bg-white/10 transition-all ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+                    title="Refresh Data"
+                  >
+                    <svg 
+                      className={`w-4 h-4 ${loading ? 'animate-spin text-cyan-400' : ''}`} 
+                      fill="none" 
+                      viewBox="0 0 24 24" 
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })()}
             </div>
           </div>
         )}
@@ -333,10 +417,14 @@ export default function DashboardPage() {
                       animate="show"
                       className="divide-y divide-white/5 bg-[#09090b]"
                     >
-                      {currentData.results.length === 0 ? (
-                        <tr><td colSpan={10} className="p-8 text-center text-zinc-600">No records found.</td></tr>
-                      ) : (
-                        currentData.results.map((rec: any, i: number) => {
+                      {(() => {
+                        const validResults = currentData.results.filter((r: any) => !r.subject || !r.subject.toUpperCase().includes('TOTAL SUMMARY'));
+                        
+                        if (validResults.length === 0) {
+                          return <tr><td colSpan={10} className="p-8 text-center text-zinc-600">No records found.</td></tr>;
+                        }
+
+                        return validResults.map((rec: any, i: number) => {
                           const val = parseFloat(rec.percentage);
                           const isHigh = val >= 75;
                           const isLow = val < 60;
@@ -363,9 +451,21 @@ export default function DashboardPage() {
                                     </div>
                                   </div>
                                 </td>
-                                <td className="px-5 py-3.5 text-center text-zinc-500 font-mono">{rec.total}</td>
-                                <td className="px-5 py-3.5 text-center text-zinc-400 font-mono">{rec.present}</td>
-                                <td className="px-5 py-3.5 text-center text-zinc-400 font-mono">{rec.absent}</td>
+                                <td className="px-5 py-3.5 text-center">
+                                  <span className="inline-block min-w-[32px] py-1 px-2.5 rounded-full bg-zinc-800 text-zinc-300 font-mono text-xs font-semibold">
+                                    {rec.total}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3.5 text-center">
+                                  <span className="inline-block min-w-[32px] py-1 px-2.5 rounded-full bg-emerald-500/10 text-emerald-500 font-mono text-xs font-semibold">
+                                    {rec.present}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3.5 text-center">
+                                  <span className="inline-block min-w-[32px] py-1 px-2.5 rounded-full bg-[#e5484d]/10 text-[#e5484d] font-mono text-xs font-semibold">
+                                    {rec.absent}
+                                  </span>
+                                </td>
                                 
                                 {activeTab === 'dashboard' && (
                                   <>
@@ -443,7 +543,7 @@ export default function DashboardPage() {
                             </Fragment>
                           );
                         })
-                      )}
+                      })()}
                     </motion.tbody>
                   </table>
                 </div>
