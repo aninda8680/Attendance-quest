@@ -20,8 +20,30 @@ export default function DashboardPage() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const [loading, setLoading] = useState(true);
+  const [syncingAll, setSyncingAll] = useState(false);
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
   const router = useRouter();
+
+  const handleSyncAll = async () => {
+    if (!userId) return;
+    setSyncingAll(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/attendance/refresh-all/${userId}`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Successfully synced ${data.successful} out of ${data.total} records.`);
+        fetchData(userId, activeTab, true);
+      } else {
+        alert(`Sync failed: ${data.message}`);
+      }
+    } catch (e) {
+      alert("Failed to sync all records.");
+    } finally {
+      setSyncingAll(false);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -192,6 +214,25 @@ export default function DashboardPage() {
             </button>
 
             <div className="flex items-center gap-2">
+              {userId && activeTab !== 'leaderboard' && (
+                <button 
+                  onClick={handleSyncAll}
+                  disabled={syncingAll}
+                  className={`flex items-center gap-2 px-4 py-1.5 ${syncingAll ? 'bg-zinc-800 border-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400'} text-sm rounded-lg transition-all font-medium`}
+                >
+                  {syncingAll ? (
+                    <svg className="w-4 h-4 animate-spin text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  )}
+                  Sync All Biometric
+                </button>
+              )}
+
               <button 
                 onClick={() => setIsAddingProfile(true)}
                 className="flex items-center gap-2 px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/20 hover:bg-cyan-500/20 text-cyan-400 text-sm rounded-lg transition-all font-medium"

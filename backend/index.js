@@ -247,7 +247,113 @@ async function scrapeCollegeAttendance(user, type) {
   }
 }
 
+async function refreshAllAttendance(user) {
+  const jar = new CookieJar();
+  const client = wrapper(axios.create({ 
+    jar, 
+    withCredentials: true,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Connection': 'keep-alive'
+    }
+  }));
+
+  try {
+    const baseUrl = "https://adamasknowledgecity.ac.in/student/";
+    const loginPageResp = await client.get(baseUrl + "login");
+    let $ = cheerio.load(loginPageResp.data);
+    const _token = $('input[name="_token"]').val();
+
+    await client.post(baseUrl + "login", {
+      _token,
+      registration_no: user.username,
+      password: user.password,
+      login: "login"
+    }, {
+      headers: { 
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Referer": baseUrl + "login"
+      }
+    });
+
+    const targetResp = await client.get(baseUrl + "dashboard");
+    $ = cheerio.load(targetResp.data);
+
+    // 1. Extract student_id
+    const callbackLink = $('a[href*="arivoo-callback?student_id="]').attr('href');
+    if (!callbackLink) throw new Error("Could not find student_id in dashboard");
+    const studentId = new URLSearchParams(callbackLink.split('?')[1]).get('student_id');
+
+    // 2. Fetch t_rel_students_details_id
+    const studentDataResp = await client.get(`https://adamasknowledgecity.ac.in/ajax/get-studentDetailsId?id=${studentId}`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const t_rel_students_details_id = studentDataResp.data.t_rel_students_details_id;
+
+    if (!t_rel_students_details_id) throw new Error("Could not get t_rel_students_details_id");
+
+    // 3. Extract all refresh buttons
+    const refreshTasks = [];
+    $('button.refresh-attendance-btn').each((i, el) => {
+      const date = $(el).attr('data-date');
+      const headerId = $(el).attr('data-attendanceheaderid');
+      if (date && headerId) {
+        refreshTasks.push({ date, headerId });
+      }
+    });
+
+    // 4. Fire requests sequentially
+    let successCount = 0;
+    for (const task of refreshTasks) {
+      try {
+        await client.post("https://adamasknowledgecity.ac.in/student/attendance/update-biometric", {
+          _token,
+          date: task.date,
+          t_rel_students_details_id,
+          t_rel_regular_class_attendance_header_id: task.headerId,
+          channel: 'student_portal'
+        }, {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Requested-With": "XMLHttpRequest"
+          }
+        });
+        successCount++;
+        await new Promise(r => setTimeout(r, 400));
+      } catch (err) {
+        console.error("Failed to sync date", task.date, err.message);
+      }
+    }
+
+    return { success: true, total: refreshTasks.length, successful: successCount };
+
+  } catch (error) {
+    console.error("Refresh All Error:", error);
+    return { success: false, message: error.message };
+  }
+}
+
 // Routes
+app.post("/api/attendance/refresh-all/:userId", async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const user = await User.findOne({ id: userId }).select('+password');
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const result = await refreshAllAttendance(user);
+    if (result.success) {
+      // Re-scrape dashboard to save updated values
+      await scrapeCollegeAttendance(user, 'dashboard');
+    }
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
 app.post("/api/users", async (req, res) => {
   const { username, password, name } = req.body;
   
