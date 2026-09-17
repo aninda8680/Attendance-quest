@@ -61,11 +61,11 @@ export function RegisterModal({ isOpen, onClose, onSuccess, isDark }: RegisterMo
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className={`relative w-full max-w-xl rounded-3xl overflow-hidden shadow-2xl transition-colors duration-300 ${
+            className={`relative w-[calc(100%-2rem)] sm:w-full max-w-xl mx-auto rounded-3xl overflow-hidden shadow-2xl transition-colors duration-300 ${
               isDark ? 'bg-[#121214] border border-white/5' : 'bg-white'
             }`}
           >
-            <div className="p-8">
+            <div className="p-6 md:p-8">
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h3 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Register New Profile</h3>

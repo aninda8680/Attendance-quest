@@ -20,17 +20,32 @@ export default function DashboardPage() {
   const [syncingAll, setSyncingAll] = useState(false);
   const [isSyncingSubject, setIsSyncingSubject] = useState(false);
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
 
   const { data: usersData, mutate: mutateUsers } = useSWR(`${API_BASE}/api/users`, fetcher);
   const availableUsers = usersData?.success ? usersData.users : [];
 
-  const { data: attendanceApiData, error, isLoading, mutate: mutateAttendance } = useSWR(
-    userId && activeTab !== 'leaderboard' ? `${API_BASE}/api/attendance/${userId}?type=${activeTab}` : null,
+  const { data: dashResp, isLoading: isDashLoading, mutate: mutateDash } = useSWR(
+    userId ? `${API_BASE}/api/attendance/${userId}?type=dashboard` : null,
     fetcher
   );
   
-  const currentData = attendanceApiData?.success ? attendanceApiData.data : null;
+  const { data: attResp, isLoading: isAttLoading, mutate: mutateAtt } = useSWR(
+    userId ? `${API_BASE}/api/attendance/${userId}?type=attendance` : null,
+    fetcher
+  );
+  
+  const dashboardData = dashResp?.success ? dashResp.data : null;
+  const attendanceData = attResp?.success ? attResp.data : null;
+
+  const currentData = activeTab === 'dashboard' ? dashboardData : activeTab === 'attendance' ? attendanceData : null;
+  const isLoading = activeTab === 'dashboard' ? isDashLoading : activeTab === 'attendance' ? isAttLoading : false;
+
+  const mutateAttendance = (data?: any, shouldRevalidate?: boolean) => {
+    if (activeTab === 'dashboard') mutateDash(data, shouldRevalidate);
+    if (activeTab === 'attendance') mutateAtt(data, shouldRevalidate);
+  };
 
   const handleSyncAll = async () => {
     if (!userId) return;
@@ -140,40 +155,203 @@ export default function DashboardPage() {
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="max-w-5xl mx-auto"
       >
-        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6 z-50 relative">
-          <h1 className="text-xl font-medium tracking-tight text-white flex items-center gap-3">
-            <div className="w-6 h-6 rounded-md bg-white text-[#09090b] flex items-center justify-center font-bold text-xs">
-              M
+        <div className="mb-6 md:mb-8 flex flex-col gap-4 md:gap-6 z-50 relative">
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg md:text-xl font-medium tracking-tight text-white flex items-center gap-3">
+              <div className="w-6 h-6 rounded-md bg-white text-[#09090b] flex items-center justify-center font-bold text-xs shrink-0">
+                M
+              </div>
+              <span className="truncate">SAASS Portal</span>
+            </h1>
+            
+            <div className="flex items-center gap-2 md:gap-3">
+              {userId && activeTab !== 'leaderboard' && (
+                <button 
+                  onClick={handleSyncAll}
+                  disabled={syncingAll}
+                  className={`flex items-center justify-center gap-2 w-9 h-9 md:w-auto md:px-4 md:py-1.5 ${syncingAll ? 'bg-zinc-800 border-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400'} text-sm rounded-lg transition-all font-medium border`}
+                  title="Sync All Biometric"
+                >
+                  {syncingAll ? (
+                    <svg className="w-4 h-4 animate-spin text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  )}
+                  <span className="hidden md:inline whitespace-nowrap">Sync All Biometric</span>
+                </button>
+              )}
+
+              {/* Desktop Actions */}
+              <div className="hidden md:flex items-center gap-3">
+                <button 
+                  onClick={() => setIsAddingProfile(true)}
+                  className="flex items-center gap-2 px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/20 hover:bg-cyan-500/20 text-cyan-400 text-sm rounded-lg transition-all font-medium whitespace-nowrap"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  New Profile
+                </button>
+
+                <div className="relative" ref={dropdownRef}>
+                  <button 
+                    onClick={() => setDropdownOpen(!dropdownOpen)} 
+                    className="flex items-center gap-2 px-4 py-1.5 bg-[#121214] border border-white/5 hover:border-white/10 text-zinc-300 text-sm rounded-lg transition-all whitespace-nowrap"
+                  >
+                    Select Profile <span className="text-[10px] text-zinc-500">▼</span>
+                  </button>
+                  
+                  <AnimatePresence>
+                    {dropdownOpen && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 5, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 5, scale: 0.98 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-2 w-56 bg-[#121214] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col"
+                      >
+                        <div className="p-1 flex flex-col gap-0.5 max-h-64 overflow-y-auto">
+                          {availableUsers.filter((u: any) => u.id !== userId).map((u: any) => {
+                            const displayName = u.name || (u.studentName !== 'Guest User' && u.studentName ? u.studentName.split(' ')[0] : `User ${u.id}`);
+                            return (
+                              <button
+                                key={u.id}
+                                onClick={() => handleUserSwitch(u.id)}
+                                className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-lg transition-colors text-left"
+                              >
+                                <div className="w-6 h-6 shrink-0 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 font-medium text-[10px]">
+                                  {u.username.substring(u.username.length - 2)}
+                                </div>
+                                <div className="flex flex-col overflow-hidden">
+                                  <span className="text-sm font-medium text-zinc-300 truncate">{displayName}</span>
+                                  <span className="text-[11px] text-zinc-600 truncate">{u.username}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                          {availableUsers.filter((u: any) => u.id !== userId).length === 0 && (
+                            <div className="px-3 py-3 text-center text-sm text-zinc-600">No other users</div>
+                          )}
+                        </div>
+                        <div className="border-t border-white/5"></div>
+                        <div className="p-1">
+                          <button 
+                            onClick={() => { localStorage.removeItem('userId'); router.push('/'); }} 
+                            className="w-full text-left px-3 py-2 text-sm text-[#e5484d] hover:bg-red-500/10 rounded-lg transition-colors"
+                          >
+                            Sign Out
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Mobile Hamburger */}
+              <div className="md:hidden">
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-[#121214] text-zinc-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {mobileMenuOpen ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    )}
+                  </svg>
+                </button>
+              </div>
             </div>
-            SAASS Portal
-          </h1>
-          
-          <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="flex p-1 rounded-lg border bg-[#121214] border-white/5">
+          </div>
+
+          {/* Mobile Menu Dropdown */}
+          <AnimatePresence>
+            {mobileMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="md:hidden overflow-hidden bg-[#121214] border border-white/5 rounded-xl mt-2"
+              >
+                <div className="p-2 flex flex-col gap-1">
+                  <button 
+                    onClick={() => { setIsAddingProfile(true); setMobileMenuOpen(false); }}
+                    className="flex items-center gap-3 px-3 py-2.5 bg-cyan-500/5 hover:bg-cyan-500/10 text-cyan-400 text-sm rounded-lg transition-all font-medium"
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    New Profile
+                  </button>
+                  <div className="px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider mt-2">Switch Profile</div>
+                  <div className="max-h-48 overflow-y-auto flex flex-col gap-1">
+                    {availableUsers.filter((u: any) => u.id !== userId).map((u: any) => {
+                      const displayName = u.name || (u.studentName !== 'Guest User' && u.studentName ? u.studentName.split(' ')[0] : `User ${u.id}`);
+                      return (
+                        <button
+                          key={u.id}
+                          onClick={() => { handleUserSwitch(u.id); setMobileMenuOpen(false); }}
+                          className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 rounded-lg transition-colors text-left"
+                        >
+                          <div className="w-7 h-7 shrink-0 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 font-medium text-[10px]">
+                            {u.username.substring(u.username.length - 2)}
+                          </div>
+                          <div className="flex flex-col overflow-hidden">
+                            <span className="text-sm font-medium text-zinc-300 truncate">{displayName}</span>
+                            <span className="text-xs text-zinc-500 truncate">{u.username}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {availableUsers.filter((u: any) => u.id !== userId).length === 0 && (
+                      <div className="px-3 py-3 text-sm text-zinc-600">No other users</div>
+                    )}
+                  </div>
+                  <div className="border-t border-white/5 my-1"></div>
+                  <button 
+                    onClick={() => { localStorage.removeItem('userId'); router.push('/'); }} 
+                    className="w-full text-left px-3 py-2.5 text-sm font-medium text-[#e5484d] hover:bg-red-500/10 rounded-lg transition-colors"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Navigation Tabs (Below Header) */}
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full">
+            <div className="flex flex-1 md:flex-none p-1 rounded-lg border bg-[#121214] border-white/5">
               <button 
                 onClick={() => handleTabSwitch('dashboard')}
-                className={`px-4 py-1.5 rounded-md text-sm transition-all ${activeTab === 'dashboard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                className={`flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-md text-xs md:text-sm transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
-                Dashboard View
+                Dashboard
               </button>
               <button 
                 onClick={() => handleTabSwitch('attendance')}
-                className={`px-4 py-1.5 rounded-md text-sm transition-all ${activeTab === 'attendance' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                className={`flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-md text-xs md:text-sm transition-all whitespace-nowrap ${activeTab === 'attendance' ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
-                Attendance View
+                Attendance
               </button>
             </div>
 
             <button 
               onClick={() => handleTabSwitch('leaderboard')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm transition-all border group ${
+              className={`flex-1 md:flex-none justify-center flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 rounded-lg text-xs md:text-sm transition-all border group whitespace-nowrap ${
                 activeTab === 'leaderboard' 
                 ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.1)]' 
                 : 'bg-[#121214] border-white/5 text-zinc-500 hover:text-zinc-300 hover:border-white/10'
               }`}
             >
               <svg 
-                className={`w-4 h-4 transition-colors ${activeTab === 'leaderboard' ? 'text-cyan-400' : 'text-zinc-600 group-hover:text-zinc-400'}`} 
+                className={`w-3.5 h-3.5 md:w-4 md:h-4 transition-colors shrink-0 ${activeTab === 'leaderboard' ? 'text-cyan-400' : 'text-zinc-600 group-hover:text-zinc-400'}`} 
                 fill="none" 
                 viewBox="0 0 24 24" 
                 stroke="currentColor"
@@ -182,91 +360,6 @@ export default function DashboardPage() {
               </svg>
               Leaderboard
             </button>
-
-            <div className="flex items-center gap-2">
-              {userId && activeTab !== 'leaderboard' && (
-                <button 
-                  onClick={handleSyncAll}
-                  disabled={syncingAll}
-                  className={`flex items-center gap-2 px-4 py-1.5 ${syncingAll ? 'bg-zinc-800 border-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400'} text-sm rounded-lg transition-all font-medium`}
-                >
-                  {syncingAll ? (
-                    <svg className="w-4 h-4 animate-spin text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  )}
-                  Sync All Biometric
-                </button>
-              )}
-
-              <button 
-                onClick={() => setIsAddingProfile(true)}
-                className="flex items-center gap-2 px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/20 hover:bg-cyan-500/20 text-cyan-400 text-sm rounded-lg transition-all font-medium"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                New Profile
-              </button>
-
-              <div className="relative" ref={dropdownRef}>
-                <button 
-                  onClick={() => setDropdownOpen(!dropdownOpen)} 
-                  className="flex items-center gap-2 px-4 py-1.5 bg-[#121214] border border-white/5 hover:border-white/10 text-zinc-300 text-sm rounded-lg transition-all"
-                >
-                  Select Profile <span className="text-[10px] text-zinc-500">▼</span>
-                </button>
-                
-                <AnimatePresence>
-                  {dropdownOpen && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 5, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 5, scale: 0.98 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-2 w-56 bg-[#121214] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col"
-                    >
-                      <div className="p-1 flex flex-col gap-0.5 max-h-64 overflow-y-auto">
-                        {availableUsers.filter((u: any) => u.id !== userId).map((u: any) => {
-                          const displayName = u.name || (u.studentName !== 'Guest User' && u.studentName ? u.studentName.split(' ')[0] : `User ${u.id}`);
-                          return (
-                            <button
-                              key={u.id}
-                              onClick={() => handleUserSwitch(u.id)}
-                              className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-lg transition-colors text-left"
-                            >
-                              <div className="w-6 h-6 shrink-0 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 font-medium text-[10px]">
-                                {u.username.substring(u.username.length - 2)}
-                              </div>
-                              <div className="flex flex-col overflow-hidden">
-                                <span className="text-sm font-medium text-zinc-300 truncate">{displayName}</span>
-                                <span className="text-[11px] text-zinc-600 truncate">{u.username}</span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                        {availableUsers.filter((u: any) => u.id !== userId).length === 0 && (
-                          <div className="px-3 py-3 text-center text-sm text-zinc-600">No other users</div>
-                        )}
-                      </div>
-                      <div className="border-t border-white/5"></div>
-                      <div className="p-1">
-                        <button 
-                          onClick={() => { localStorage.removeItem('userId'); router.push('/'); }} 
-                          className="w-full text-left px-3 py-2 text-sm text-[#e5484d] hover:bg-red-500/10 rounded-lg transition-colors"
-                        >
-                          Sign Out
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -323,8 +416,8 @@ export default function DashboardPage() {
                 return total > 0 ? (((present + leave - markedAbsent) / total) * 100).toFixed(2) : null;
               };
 
-              const dashboardPct = activeTab === 'dashboard' ? getPercentage(currentData) : null;
-              const attendancePct = activeTab === 'attendance' ? getPercentage(currentData) : null;
+              const dashboardPct = getPercentage(dashboardData);
+              const attendancePct = getPercentage(attendanceData);
 
               const renderBox = (label: string, percentage: string | null, active: boolean) => {
                 if (!percentage && !active) return (
@@ -410,8 +503,131 @@ export default function DashboardPage() {
               transition={{ duration: 0.3 }}
               className="flex flex-col gap-6"
             >
-              <div className="rounded-xl border border-white/5 overflow-hidden">
-                <div className="overflow-x-auto">
+              <div className="rounded-xl overflow-hidden">
+                
+                {/* Mobile Card View */}
+                <div className="md:hidden flex flex-col gap-3">
+                  {(() => {
+                    const validResults = currentData.results.filter((r: any) => !r.subject || !r.subject.toUpperCase().includes('TOTAL SUMMARY'));
+                    
+                    if (validResults.length === 0) {
+                      return <div className="p-8 text-center text-zinc-600 border border-white/5 bg-[#121214] rounded-xl">No records found.</div>;
+                    }
+
+                    return validResults.map((rec: any, i: number) => {
+                      const val = parseFloat(rec.percentage);
+                      const isHigh = val >= 75;
+                      const isLow = val < 60;
+                      
+                      let percentageColor = isHigh ? "text-emerald-500" : isLow ? "text-[#e5484d]" : "text-amber-500";
+                      let percentageBg = isHigh ? "bg-emerald-500/10 border-emerald-500/20" : isLow ? "bg-[#e5484d]/10 border-[#e5484d]/20" : "bg-amber-500/10 border-amber-500/20";
+                      const subjName = rec.subject ? rec.subject.replace('Click for details', '').replace(/&nbsp;/g, '').trim() : '';
+
+                      return (
+                        <div key={i} className="flex flex-col bg-[#121214] border border-white/5 rounded-xl overflow-hidden shadow-sm">
+                          <div 
+                            className={`p-4 flex flex-col gap-3 transition-colors ${activeTab === 'dashboard' ? 'active:bg-white/[0.02]' : ''}`}
+                            onClick={() => activeTab === 'dashboard' ? setExpandedSubject(expandedSubject === rec.subject ? null : rec.subject) : null}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {activeTab === 'dashboard' && (
+                                  <span className="text-zinc-600 text-[10px] w-3 flex justify-center transition-transform shrink-0" style={{ transform: expandedSubject === rec.subject ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                                    ▶
+                                  </span>
+                                )}
+                                <h4 className="text-sm text-zinc-300 font-medium truncate" title={subjName}>{subjName}</h4>
+                              </div>
+                              <div className={`shrink-0 flex items-center justify-center px-2 py-1 rounded-md ${percentageBg} border`}>
+                                <span className={`font-mono font-bold text-xs ${percentageColor}`}>{rec.percentage}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="flex flex-col items-center justify-center py-1.5 rounded bg-white/[0.02] border border-white/5">
+                                <span className="text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Total</span>
+                                <span className="text-xs font-mono font-medium text-zinc-300">{rec.total}</span>
+                              </div>
+                              <div className="flex flex-col items-center justify-center py-1.5 rounded bg-emerald-500/5 border border-emerald-500/10">
+                                <span className="text-[9px] uppercase tracking-wider text-emerald-500/70 mb-0.5">Present</span>
+                                <span className="text-xs font-mono font-medium text-emerald-500">{rec.present}</span>
+                              </div>
+                              <div className="flex flex-col items-center justify-center py-1.5 rounded bg-[#e5484d]/5 border border-[#e5484d]/10">
+                                <span className="text-[9px] uppercase tracking-wider text-[#e5484d]/70 mb-0.5">Absent</span>
+                                <span className="text-xs font-mono font-medium text-[#e5484d]">{rec.absent}</span>
+                              </div>
+                            </div>
+
+                            {activeTab === 'dashboard' && (
+                              <div className="grid grid-cols-2 gap-2 mt-1">
+                                <div className="flex items-center justify-between px-2 py-1.5 rounded bg-white/[0.01]">
+                                  <span className="text-[9px] uppercase tracking-wider text-zinc-500">Bio Present</span>
+                                  <span className="text-[11px] font-mono text-zinc-400">{rec.bioPresent}</span>
+                                </div>
+                                <div className="flex items-center justify-between px-2 py-1.5 rounded bg-white/[0.01]">
+                                  <span className="text-[9px] uppercase tracking-wider text-zinc-500">Bio Absent</span>
+                                  <span className="text-[11px] font-mono text-zinc-400">{rec.bioAbsent}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <AnimatePresence>
+                            {expandedSubject === rec.subject && rec.details && rec.details.length > 0 && activeTab === 'dashboard' && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="bg-[#0c0c0e] border-t border-white/5"
+                              >
+                                <div className="p-3">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="text-[9px] font-semibold text-zinc-500 uppercase tracking-widest">Timeline</div>
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); handleManualSync(); }}
+                                      className="flex items-center gap-1.5 px-2 py-1 bg-[#121214] border border-white/10 text-zinc-300 rounded text-[9px] font-medium"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                      </svg>
+                                      Sync
+                                    </button>
+                                  </div>
+                                  
+                                  <div className="flex flex-col gap-2">
+                                    {rec.details.map((detail: any, j: number) => (
+                                      <div key={j} className="flex flex-col p-2.5 rounded bg-white/[0.02] border border-white/5">
+                                        <div className="flex justify-between items-start mb-1.5">
+                                          <div className="flex flex-col gap-0.5">
+                                            <span className="font-mono text-xs text-zinc-300 leading-none">{detail.date}</span>
+                                            <span className="font-mono text-[9px] text-zinc-500 leading-none">{detail.time}</span>
+                                          </div>
+                                          <div className="text-right flex flex-col items-end">
+                                            {detail.status.finalStatus === 'present' ? <span className="text-emerald-500 font-bold font-mono text-xs">P</span> : detail.status.finalStatus === 'absent' ? <span className="text-[#e5484d] font-bold font-mono text-xs">A</span> : <span className="text-amber-500 font-bold font-mono text-xs">W</span>}
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                          <span className="text-[10px] text-zinc-400 truncate w-full" title={detail.faculty}>{detail.faculty}</span>
+                                          <div className="flex items-center gap-3 text-[9px] text-zinc-500 uppercase tracking-wide">
+                                            <span className="flex items-center gap-1">Class {detail.status.classStatus === 'present' ? <span className="text-emerald-500/80">✓</span> : <span className="text-[#e5484d]/80">✕</span>}</span>
+                                            <span className="flex items-center gap-1">Bio {detail.status.bioStatus === 'present' ? <span className="text-emerald-500/80">✓</span> : <span className="text-[#e5484d]/80">✕</span>}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto border border-white/5 bg-[#121214] rounded-xl">
                   <table className="w-full text-left border-collapse text-sm">
                     <thead>
                       <tr className="border-b border-white/5 bg-[#121214] text-zinc-400">

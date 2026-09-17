@@ -86,11 +86,11 @@ export function GlobalStats({ currentUserId, onUserSwitch, isDark }: GlobalStats
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`p-8 rounded-3xl border transition-all duration-500 ${
+      className={`p-4 md:p-8 rounded-3xl border transition-all duration-500 ${
         isDark ? 'bg-[#121214]/40 border-white/5 backdrop-blur-sm' : 'bg-white border-zinc-100 shadow-xl'
       }`}
     >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-12">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 md:gap-6 mb-6 md:mb-12">
         <div>
           <h3 className={`text-xl font-medium tracking-tight mb-1 ${isDark ? 'text-white' : 'text-zinc-900'}`}>
             Who Leading ??
@@ -154,7 +154,8 @@ export function GlobalStats({ currentUserId, onUserSwitch, isDark }: GlobalStats
               fontSize={10}
               tickLine={false}
               axisLine={false}
-              tick={{ dy: 10, fontWeight: 500 }}
+              tick={{ dy: 10, fontWeight: 500, fontSize: 9 }}
+              minTickGap={15}
             />
             <YAxis 
               domain={[0, 100]} 

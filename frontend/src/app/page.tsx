@@ -105,7 +105,7 @@ export default function LoginPage() {
         <div className="absolute top-6 right-6 md:top-8 md:right-10 flex items-center gap-3">
           <button
             onClick={() => setIsRegistering(true)}
-            className={`h-12 px-5 rounded-xl border transition-all duration-300 flex items-center gap-2 group font-medium text-sm ${
+            className={`h-10 md:h-12 px-3 md:px-5 rounded-xl border transition-all duration-300 flex items-center gap-2 group font-medium text-sm ${
               isDark 
                 ? 'bg-zinc-900/80 border-zinc-800 hover:border-cyan-500/50 text-zinc-300 hover:text-cyan-400' 
                 : 'bg-zinc-100/80 border-zinc-200 hover:border-cyan-500 text-zinc-600 hover:text-cyan-600'
@@ -115,12 +115,12 @@ export default function LoginPage() {
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            <span>Add Profile</span>
+            <span className="hidden sm:inline">Add Profile</span>
           </button>
 
           <button
             onClick={toggleTheme}
-            className={`relative w-12 h-12 rounded-xl border transition-all duration-300 ${
+            className={`relative w-10 h-10 md:w-12 md:h-12 rounded-xl border transition-all duration-300 flex-shrink-0 ${
               isDark 
                 ? 'bg-zinc-900/80 border-zinc-800 hover:border-cyan-500/50' 
                 : 'bg-zinc-100/80 border-zinc-200 hover:border-cyan-500'
@@ -174,7 +174,7 @@ export default function LoginPage() {
             variants={containerVariants}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-3xl"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 w-full max-w-3xl"
           >
             {users.map((u, idx) => (
               <motion.button
@@ -183,7 +183,7 @@ export default function LoginPage() {
                 whileTap={{ scale: 0.98 }}
                 key={u.id}
                 onClick={() => handleLogin(u.username)}
-                className={`group relative rounded-2xl p-6 text-left transition-all duration-300 overflow-hidden ${
+                className={`group relative rounded-2xl p-4 sm:p-6 text-left transition-all duration-300 overflow-hidden ${
                   isDark
                     ? 'bg-zinc-900/80 border border-white/10 hover:border-cyan-500/50 hover:bg-zinc-900 shadow-lg hover:shadow-cyan-500/10'
                     : 'bg-white border-2 border-zinc-200 hover:border-cyan-500 shadow-sm hover:shadow-lg hover:shadow-cyan-500/10'
@@ -242,7 +242,7 @@ export default function LoginPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className={`mt-16 flex items-center gap-6 text-[10px] font-mono ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}
+          className={`mt-16 flex flex-wrap justify-center items-center gap-2 sm:gap-6 text-[10px] font-mono ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}
         >
           <span className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
