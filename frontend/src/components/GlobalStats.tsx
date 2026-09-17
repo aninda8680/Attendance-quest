@@ -1,5 +1,6 @@
 "use client"
 import React, { useState, useEffect } from 'react';
+import useSWR from 'swr';
 import { 
   AreaChart, 
   Area, 
@@ -12,6 +13,7 @@ import {
 import { motion } from 'framer-motion';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 interface GlobalStatsProps {
   currentUserId: string | null;
@@ -20,38 +22,30 @@ interface GlobalStatsProps {
 }
 
 export function GlobalStats({ currentUserId, onUserSwitch, isDark }: GlobalStatsProps) {
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: statsData, error, isLoading } = useSWR(`${API_BASE}/api/users/stats`, fetcher, {
+    refreshInterval: 5 * 60 * 1000 // 5 minutes
+  });
+
   const [selectedSubject, setSelectedSubject] = useState<string>('Overall');
+  const [data, setData] = useState<any[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/users/stats`);
-        const data = await res.json();
-        if (data.success) {
-          // Sort by name for a stable X-axis across sessions
-          const sorted = data.stats.sort((a: any, b: any) => a.name.localeCompare(b.name));
-          setData(sorted);
-          
-          // Extract unique subjects
-          const subjectsSet = new Set<string>();
-          sorted.forEach((user: any) => {
-            if (user.subjects) {
-              Object.keys(user.subjects).forEach(sub => subjectsSet.add(sub));
-            }
-          });
-          setAvailableSubjects(Array.from(subjectsSet).sort());
+    if (statsData?.success) {
+      // Sort by name for a stable X-axis across sessions
+      const sorted = [...statsData.stats].sort((a: any, b: any) => a.name.localeCompare(b.name));
+      setData(sorted);
+      
+      // Extract unique subjects
+      const subjectsSet = new Set<string>();
+      sorted.forEach((user: any) => {
+        if (user.subjects) {
+          Object.keys(user.subjects).forEach(sub => subjectsSet.add(sub));
         }
-      } catch (error) {
-        console.error("Error fetching stats");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
-  }, []);
+      });
+      setAvailableSubjects(Array.from(subjectsSet).sort());
+    }
+  }, [statsData]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -81,7 +75,7 @@ export function GlobalStats({ currentUserId, onUserSwitch, isDark }: GlobalStats
     return null;
   };
 
-  if (loading) return (
+  if (isLoading) return (
     <div className="flex flex-col items-center justify-center py-32 space-y-4">
       <div className="w-10 h-10 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
       <p className="text-xs font-mono text-zinc-500 animate-pulse uppercase tracking-widest">Processing_Data_Matrix...</p>

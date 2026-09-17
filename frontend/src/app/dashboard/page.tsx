@@ -1,28 +1,36 @@
 "use client"
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import { motion, Variants, AnimatePresence } from 'framer-motion';
 import { RegisterModal } from '@/components/RegisterModal';
 import { GlobalStats } from '@/components/GlobalStats';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DashboardPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance' | 'leaderboard'>('dashboard');
   
-  const [dashboardData, setDashboardData] = useState<any>(null);
-  const [attendanceData, setAttendanceData] = useState<any>(null);
-  
-  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isAddingProfile, setIsAddingProfile] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  const [loading, setLoading] = useState(true);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [isSyncingSubject, setIsSyncingSubject] = useState(false);
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
   const router = useRouter();
+
+  const { data: usersData, mutate: mutateUsers } = useSWR(`${API_BASE}/api/users`, fetcher);
+  const availableUsers = usersData?.success ? usersData.users : [];
+
+  const { data: attendanceApiData, error, isLoading, mutate: mutateAttendance } = useSWR(
+    userId && activeTab !== 'leaderboard' ? `${API_BASE}/api/attendance/${userId}?type=${activeTab}` : null,
+    fetcher
+  );
+  
+  const currentData = attendanceApiData?.success ? attendanceApiData.data : null;
 
   const handleSyncAll = async () => {
     if (!userId) return;
@@ -34,7 +42,7 @@ export default function DashboardPage() {
       const data = await res.json();
       if (data.success) {
         alert(`Successfully synced ${data.successful} out of ${data.total} records.`);
-        fetchData(userId, activeTab, true);
+        mutateAttendance();
       } else {
         alert(`Sync failed: ${data.message}`);
       }
@@ -42,18 +50,6 @@ export default function DashboardPage() {
       alert("Failed to sync all records.");
     } finally {
       setSyncingAll(false);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/users`, {
-        cache: 'no-store'
-      });
-      const data = await res.json();
-      if (data.success) setAvailableUsers(data.users);
-    } catch (error) {
-      console.error("Error fetching users", error);
     }
   };
 
@@ -68,74 +64,50 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  useEffect(() => {
     const storedUserId = localStorage.getItem('userId');
     if (!storedUserId) {
       router.push('/');
     } else {
       setUserId(storedUserId);
-      fetchData(storedUserId, 'dashboard');
     }
   }, [router]);
 
   const onRegisterSuccess = (newUserId: string) => {
-    fetchUsers();
+    mutateUsers();
     setIsAddingProfile(false);
   };
 
-  const fetchData = async (id: string, type: 'dashboard' | 'attendance' | 'leaderboard', force = false) => {
-    if (type === 'leaderboard') {
-      setLoading(false);
-      return;
-    }
-    
-    if (!force) {
-      if (type === 'dashboard' && dashboardData) return;
-      if (type === 'attendance' && attendanceData) return;
-    }
-
-    setLoading(true);
+  const handleManualSync = async () => {
+    if (!userId || activeTab === 'leaderboard') return;
+    setIsSyncingSubject(true);
     try {
-      const res = await fetch(`${API_BASE}/api/attendance/${id}?type=${type}`, {
-        cache: 'no-store'
+      const res = await fetch(`${API_BASE}/api/attendance/${userId}/sync?type=${activeTab}`, {
+        method: 'POST'
       });
       const data = await res.json();
       if (data.success) {
-        if (type === 'dashboard') setDashboardData(data.data);
-        else setAttendanceData(data.data);
+        mutateAttendance(data, false);
       } else {
         alert(data.message);
       }
     } catch (e) {
-      alert("Failed to fetch data.");
+      alert("Failed to sync data.");
     } finally {
-      setLoading(false);
+      setIsSyncingSubject(false);
     }
   };
 
   const handleTabSwitch = (tab: 'dashboard' | 'attendance' | 'leaderboard') => {
     setActiveTab(tab);
     setExpandedSubject(null);
-    if (userId && tab !== 'leaderboard') {
-      fetchData(userId, tab);
-    }
   };
 
   const handleUserSwitch = (newUserId: string) => {
     setDropdownOpen(false);
     localStorage.setItem('userId', newUserId);
     setUserId(newUserId);
-    setDashboardData(null);
-    setAttendanceData(null);
-    
     if (activeTab === 'leaderboard') {
       setActiveTab('dashboard');
-      fetchData(newUserId, 'dashboard', true);
-    } else {
-      fetchData(newUserId, activeTab, true);
     }
   };
 
@@ -152,15 +124,13 @@ export default function DashboardPage() {
     show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
   };
 
-  const currentData = activeTab === 'dashboard' ? dashboardData : attendanceData;
-  const profileData = dashboardData || attendanceData;
-  const currentUser = availableUsers.find(u => u.id === userId);
+  const currentUser = availableUsers.find((u: any) => u.id === userId);
   
-  const displayStudentName = (profileData?.studentName && profileData.studentName !== "Unknown Student") 
-    ? profileData.studentName 
+  const displayStudentName = (currentData?.studentName && currentData.studentName !== "Unknown Student") 
+    ? currentData.studentName 
     : (currentUser?.name || currentUser?.studentName || `User ${userId || ''}`);
     
-  const displayRegInfo = profileData?.regInfo || currentUser?.username || 'Loading Info...';
+  const displayRegInfo = currentData?.regInfo || currentUser?.username || 'Loading Info...';
 
   return (
     <div className="min-h-screen bg-[#09090b] p-4 md:p-8 font-sans text-zinc-300">
@@ -261,7 +231,7 @@ export default function DashboardPage() {
                       className="absolute right-0 mt-2 w-56 bg-[#121214] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col"
                     >
                       <div className="p-1 flex flex-col gap-0.5 max-h-64 overflow-y-auto">
-                        {availableUsers.filter(u => u.id !== userId).map(u => {
+                        {availableUsers.filter((u: any) => u.id !== userId).map((u: any) => {
                           const displayName = u.name || (u.studentName !== 'Guest User' && u.studentName ? u.studentName.split(' ')[0] : `User ${u.id}`);
                           return (
                             <button
@@ -279,7 +249,7 @@ export default function DashboardPage() {
                             </button>
                           );
                         })}
-                        {availableUsers.filter(u => u.id !== userId).length === 0 && (
+                        {availableUsers.filter((u: any) => u.id !== userId).length === 0 && (
                           <div className="px-3 py-3 text-center text-sm text-zinc-600">No other users</div>
                         )}
                       </div>
@@ -353,14 +323,20 @@ export default function DashboardPage() {
                 return total > 0 ? (((present + leave - markedAbsent) / total) * 100).toFixed(2) : null;
               };
 
-              const dashboardPct = getPercentage(dashboardData);
-              const attendancePct = getPercentage(attendanceData);
+              const dashboardPct = activeTab === 'dashboard' ? getPercentage(currentData) : null;
+              const attendancePct = activeTab === 'attendance' ? getPercentage(currentData) : null;
 
               const renderBox = (label: string, percentage: string | null, active: boolean) => {
-                if (!percentage) return (
-                  <div className={`flex flex-col items-end px-4 py-2 rounded-xl border border-white/5 bg-white/[0.02] shrink-0 ${!active ? 'opacity-50' : ''}`}>
+                if (!percentage && !active) return (
+                  <div className={`flex flex-col items-end px-4 py-2 rounded-xl border border-white/5 bg-white/[0.02] shrink-0 opacity-50`}>
                     <span className="text-[10px] font-semibold tracking-wider uppercase opacity-50 mb-0.5">{label}</span>
                     <span className="text-xl font-bold font-mono text-zinc-600 whitespace-nowrap">--.--%</span>
+                  </div>
+                );
+                if (!percentage && active && isLoading) return (
+                  <div className={`flex flex-col items-end px-4 py-2 rounded-xl border border-white/5 bg-white/[0.02] shrink-0 opacity-80`}>
+                    <span className="text-[10px] font-semibold tracking-wider uppercase opacity-50 mb-0.5">{label}</span>
+                    <div className="h-6 w-16 bg-white/10 rounded animate-pulse mt-1" />
                   </div>
                 );
                 
@@ -385,13 +361,13 @@ export default function DashboardPage() {
                   {renderBox("Attendance", attendancePct, activeTab === 'attendance')}
                   
                   <button 
-                    onClick={() => userId && fetchData(userId, activeTab, true)}
-                    disabled={loading}
-                    className={`ml-2 flex items-center justify-center w-10 h-10 rounded-xl border border-white/10 bg-[#121214] text-zinc-400 hover:text-white hover:bg-white/10 transition-all ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+                    onClick={handleManualSync}
+                    disabled={isSyncingSubject || isLoading}
+                    className={`ml-2 flex items-center justify-center w-10 h-10 rounded-xl border border-white/10 bg-[#121214] text-zinc-400 hover:text-white hover:bg-white/10 transition-all ${isSyncingSubject || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
                     title="Refresh Data"
                   >
                     <svg 
-                      className={`w-4 h-4 ${loading ? 'animate-spin text-cyan-400' : ''}`} 
+                      className={`w-4 h-4 ${isSyncingSubject ? 'animate-spin text-cyan-400' : ''}`} 
                       fill="none" 
                       viewBox="0 0 24 24" 
                       stroke="currentColor"
@@ -414,7 +390,7 @@ export default function DashboardPage() {
               onUserSwitch={handleUserSwitch}
               isDark={true}
             />
-          ) : loading ? (
+          ) : isLoading && !currentData ? (
             <motion.div 
               key="loading"
               initial={{ opacity: 0 }}
@@ -537,7 +513,7 @@ export default function DashboardPage() {
                                         <div className="flex items-center justify-between mb-4">
                                           <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">Attendance Timeline</div>
                                           <button 
-                                            onClick={(e) => { e.stopPropagation(); if (userId) fetchData(userId, activeTab, true); }}
+                                            onClick={(e) => { e.stopPropagation(); handleManualSync(); }}
                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-[#121214] hover:bg-white/10 border border-white/10 shadow-sm text-zinc-300 rounded-md text-[10px] font-medium transition-colors"
                                           >
                                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -42,7 +42,8 @@ const userSchema = new mongoose.Schema({
   studentName: { type: String, default: "" },
   regInfo: { type: String, default: "" },
   dashboard: [dashboardSchema],
-  attendance: [attendanceSchema]
+  attendance: [attendanceSchema],
+  updatedAt: { type: Date, default: Date.now }
 });
 
 const User = mongoose.model("User", userSchema);
@@ -237,6 +238,7 @@ async function scrapeCollegeAttendance(user, type) {
         percentage: res.percentage
       }));
     }
+    user.updatedAt = Date.now();
     await user.save();
 
     return { success: true, data: attendanceData };
@@ -407,8 +409,16 @@ app.get("/api/users", async (req, res) => {
   }
 });
 
+// In-memory cache for stats
+let statsCache = { data: null, lastUpdated: 0 };
+const STATS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 app.get("/api/users/stats", async (req, res) => {
   try {
+    if (statsCache.data && (Date.now() - statsCache.lastUpdated < STATS_CACHE_TTL)) {
+      return res.json({ success: true, stats: statsCache.data });
+    }
+
     const users = await User.find({});
     const stats = users.map(user => {
       // Aggregate Dashboard Percentage
@@ -444,6 +454,8 @@ app.get("/api/users/stats", async (req, res) => {
         subjects: subjectsMap
       };
     });
+
+    statsCache = { data: stats, lastUpdated: Date.now() };
     res.json({ success: true, stats });
   } catch (error) {
     console.error(error);
@@ -464,6 +476,54 @@ app.post("/api/auth", async (req, res) => {
 });
 
 app.get("/api/attendance/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const { type } = req.query; // 'dashboard' or 'attendance'
+
+  if (type !== 'dashboard' && type !== 'attendance') {
+    return res.status(400).json({ message: "Invalid type requested" });
+  }
+
+  try {
+    const user = await User.findOne({ id: userId }).select('+password');
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Stale-While-Revalidate caching logic
+    const STALE_THRESHOLD = 60 * 60 * 1000; // 1 hour
+    const isStale = !user.updatedAt || (Date.now() - new Date(user.updatedAt).getTime() > STALE_THRESHOLD);
+    const hasData = (type === 'dashboard' && user.dashboard && user.dashboard.length > 0) || 
+                    (type === 'attendance' && user.attendance && user.attendance.length > 0);
+
+    // If we have cached data, construct the response object
+    if (hasData) {
+      const responseData = {
+        type,
+        studentName: user.studentName || "Unknown Student",
+        regInfo: user.regInfo || "No registration found",
+        results: type === 'dashboard' ? user.dashboard : user.attendance
+      };
+      
+      // Send immediately
+      res.json({ success: true, data: responseData, cached: true });
+
+      // Trigger background scrape if stale (do not await)
+      if (isStale) {
+        console.log(`Background scrape triggered for user ${userId} (${type})`);
+        scrapeCollegeAttendance(user, type).catch(err => console.error("Background scrape failed:", err));
+      }
+    } else {
+      // No data at all, wait for scrape
+      console.log(`Synchronous scrape required for user ${userId} (${type})`);
+      const scrapeResult = await scrapeCollegeAttendance(user, type);
+      res.json(scrapeResult);
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// Manual Sync Endpoint
+app.post("/api/attendance/:userId/sync", async (req, res) => {
   const { userId } = req.params;
   const { type } = req.query; // 'dashboard' or 'attendance'
 

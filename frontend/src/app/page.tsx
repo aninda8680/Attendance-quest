@@ -1,15 +1,19 @@
 "use client"
 import { useState, useEffect } from 'react';
+import useSWR from 'swr';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useTheme } from '@/components/ThemeProvider';
 import { RegisterModal } from '@/components/RegisterModal';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
 export default function LoginPage() {
   const { theme, toggleTheme } = useTheme();
-  const [users, setUsers] = useState<{ id: number; username: string; name?: string; studentName?: string }[]>([]);
-  const [fetching, setFetching] = useState(true);
+  const { data: usersData, error, isLoading, mutate } = useSWR(`${API_BASE}/api/users`, fetcher);
+  const users = usersData?.success ? usersData.users : [];
+  
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -18,24 +22,6 @@ export default function LoginPage() {
     };
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/users`, {
-          // Next.js uses caching by default. We want to force it to refetch for testing.
-          cache: 'no-store'
-        });
-        const data = await res.json();
-        if (data.success) setUsers(data.users);
-      } catch (error) {
-        console.error("Error fetching users", error);
-      } finally {
-        setFetching(false);
-      }
-    };
-    fetchUsers();
   }, []);
 
   const [isRegistering, setIsRegistering] = useState(false);
@@ -62,10 +48,8 @@ export default function LoginPage() {
   };
 
   const onRegisterSuccess = async () => {
-    // Refresh users
-    const res = await fetch(`${API_BASE}/api/users`, { cache: 'no-store' });
-    const data = await res.json();
-    if (data.success) setUsers(data.users);
+    // Refresh users using SWR
+    mutate();
     setIsRegistering(false);
   };
 
@@ -173,7 +157,7 @@ export default function LoginPage() {
           }`}>Select your profile to continue</p>
         </motion.div>
         
-        {fetching ? (
+        {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 w-full">
             <div className="relative w-12 h-12">
               <div className={`absolute inset-0 border-2 rounded-full transition-colors duration-300 ${
