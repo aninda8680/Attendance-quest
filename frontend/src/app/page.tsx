@@ -183,7 +183,7 @@ export default function LoginPage() {
                 whileTap={{ scale: 0.98 }}
                 key={u.id}
                 onClick={() => handleLogin(u.username)}
-                className={`group relative rounded-2xl p-4 sm:p-6 text-left transition-all duration-300 overflow-hidden ${
+                className={`group relative rounded-2xl p-3 sm:p-4 text-left transition-all duration-300 overflow-hidden flex items-center gap-3 ${
                   isDark
                     ? 'bg-zinc-900/80 border border-white/10 hover:border-cyan-500/50 hover:bg-zinc-900 shadow-lg hover:shadow-cyan-500/10'
                     : 'bg-white border-2 border-zinc-200 hover:border-cyan-500 shadow-sm hover:shadow-lg hover:shadow-cyan-500/10'
@@ -192,44 +192,29 @@ export default function LoginPage() {
                 <div className={`absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity`} />
                 <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-cyan-500/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity" />
                 
-                <div className="relative flex items-start gap-4">
-                  <div className="relative">
-                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold transition-all duration-300 shadow-inner ${
-                      isDark
-                        ? 'bg-gradient-to-br from-zinc-800 to-zinc-900 text-zinc-400 group-hover:from-cyan-500 group-hover:to-blue-600 group-hover:text-white'
-                        : 'bg-gradient-to-br from-zinc-100 to-zinc-200 text-zinc-600 group-hover:from-cyan-500 group-hover:to-blue-600 group-hover:text-white'
-                    }`}>
-                      {u.username.length >= 2 ? u.username.substring(u.username.length - 2).toUpperCase() : '?'}
-                    </div>
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[10px] font-mono text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded mb-2 inline-block dark:bg-cyan-500/10 dark:text-cyan-400">
-                      ID:{String(u.id).padStart(4, '0')}
-                    </span>
-                    <h3 className={`font-semibold text-base mb-0.5 truncate transition-colors ${
-                      isDark 
-                        ? 'text-zinc-200 group-hover:text-cyan-400' 
-                        : 'text-zinc-900 group-hover:text-cyan-700'
-                    }`}>
-                      {u.name || (u.studentName !== 'Guest User' && u.studentName ? u.studentName.split(' ')[0] : `User ${u.id}`)}
-                    </h3>
-                    <p className={`text-xs font-mono truncate transition-colors ${
-                      isDark ? 'text-zinc-500' : 'text-zinc-400'
-                    }`}>
-                      {u.username}
-                    </p>
+                <div className="relative">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-base font-bold transition-all duration-300 shadow-inner ${
+                    isDark
+                      ? 'bg-gradient-to-br from-zinc-800 to-zinc-900 text-zinc-400 group-hover:from-cyan-500 group-hover:to-blue-600 group-hover:text-white'
+                      : 'bg-gradient-to-br from-zinc-100 to-zinc-200 text-zinc-600 group-hover:from-cyan-500 group-hover:to-blue-600 group-hover:text-white'
+                  }`}>
+                    {u.username.length >= 2 ? u.username.substring(u.username.length - 2).toUpperCase() : '?'}
                   </div>
                 </div>
-
-                <div className={`mt-4 pt-4 flex items-center justify-between transition-colors ${
-                  isDark ? 'border-t border-white/5' : 'border-t border-zinc-100'
-                }`}>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <span className={`text-[10px] font-mono ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>ACTIVE</span>
-                  </div>
-                  <span className={`text-[10px] font-mono ${isDark ? 'text-zinc-600' : 'text-zinc-300'}`}>PROFILE_{idx + 1}</span>
+                
+                <div className="flex-1 min-w-0 relative">
+                  <h3 className={`font-semibold text-sm mb-0.5 truncate transition-colors ${
+                    isDark 
+                      ? 'text-zinc-200 group-hover:text-cyan-400' 
+                      : 'text-zinc-900 group-hover:text-cyan-700'
+                  }`}>
+                    {u.name || (u.studentName !== 'Guest User' && u.studentName ? u.studentName.split(' ')[0] : `User ${u.id}`)}
+                  </h3>
+                  <p className={`text-xs font-mono truncate transition-colors ${
+                    isDark ? 'text-zinc-500' : 'text-zinc-400'
+                  }`}>
+                    {u.username}
+                  </p>
                 </div>
               </motion.button>
             ))}
