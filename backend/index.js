@@ -21,8 +21,10 @@ const dashboardSchema = new mongoose.Schema({
   total: String,
   present: String,
   absent: String,
+  leave: String,
   bioPresent: String,
   bioAbsent: String,
+  markedAbsent: String,
   percentage: String
 }, { _id: false });
 
@@ -225,8 +227,10 @@ async function scrapeCollegeAttendance(user, type) {
         total: res.total,
         present: res.present,
         absent: res.absent,
+        leave: res.leave,
         bioPresent: res.bioPresent,
         bioAbsent: res.bioAbsent,
+        markedAbsent: res.markedAbsent,
         percentage: res.percentage
       }));
     } else if (type === "attendance") {
