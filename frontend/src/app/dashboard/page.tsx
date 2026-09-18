@@ -433,7 +433,7 @@ export default function DashboardPage() {
                   </div>
                 );
                 
-                const val = parseFloat(percentage);
+                const val = parseFloat(percentage || "0");
                 const isHigh = val >= 75;
                 const isLow = val < 60;
                 const colorClass = isHigh ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" : isLow ? "text-[#e5484d] border-[#e5484d]/20 bg-[#e5484d]/5" : "text-amber-500 border-amber-500/20 bg-amber-500/5";
@@ -442,7 +442,7 @@ export default function DashboardPage() {
                   <div className={`flex flex-col items-end px-4 py-2 rounded-xl border ${colorClass} shadow-lg shadow-black/20 shrink-0 ${!active ? 'opacity-60 scale-95' : 'scale-100'} transition-all`}>
                     <span className="text-[10px] font-semibold tracking-wider uppercase opacity-80 mb-0.5 whitespace-nowrap">{label}</span>
                     <span className="text-2xl font-bold font-mono tracking-tighter leading-none whitespace-nowrap">
-                      {percentage}<span className="text-sm opacity-70 ml-0.5">%</span>
+                      {percentage || "--.--"}<span className="text-sm opacity-70 ml-0.5">%</span>
                     </span>
                   </div>
                 );

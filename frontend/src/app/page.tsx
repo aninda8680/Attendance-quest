@@ -176,7 +176,7 @@ export default function LoginPage() {
             animate="show"
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 w-full max-w-3xl"
           >
-            {users.map((u, idx) => (
+            {users.map((u: any) => (
               <motion.button
                 variants={itemVariants}
                 whileHover={{ y: -4, scale: 1.02 }}
